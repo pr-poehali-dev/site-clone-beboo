@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Profile } from '@/data/profiles';
+import { Profile } from '@/api/client';
 import Icon from '@/components/ui/icon';
 
 interface SwipeCardProps {

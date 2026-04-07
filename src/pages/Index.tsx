@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import AuthPage from './AuthPage';
 import DiscoverPage from './DiscoverPage';
 import MatchesPage from './MatchesPage';
 import LikesPage from './LikesPage';
 import ProfilePage from './ProfilePage';
 import Icon from '@/components/ui/icon';
-import { matches } from '@/data/profiles';
+import { api } from '@/api/client';
 
 type Tab = 'discover' | 'likes' | 'messages' | 'profile';
 
@@ -16,60 +18,90 @@ const tabs: { id: Tab; icon: string; label: string }[] = [
 ];
 
 export default function Index() {
+  const auth = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('discover');
-  const unreadMessages = matches.reduce((sum, m) => sum + (m.unread || 0), 0);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!auth.isAuthed) return;
+    const fetchUnread = async () => {
+      try {
+        const res = await api.matches.list();
+        setUnreadCount(res.matches.reduce((s, m) => s + m.unread, 0));
+      } catch { /* ignore */ }
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
+  }, [auth.isAuthed]);
+
+  if (auth.isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-3xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, hsl(340 82% 58%), hsl(262 80% 64%))' }}>
+            <span className="text-3xl">⚡</span>
+          </div>
+          <div className="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!auth.isAuthed) {
+    return (
+      <div className="max-w-md mx-auto min-h-screen bg-background">
+        <AuthPage onLogin={auth.login} onRegister={auth.register} />
+      </div>
+    );
+  }
+
+  const avatarSrc = auth.user?.photos?.[0]
+    || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(auth.user?.name || 'user')}&backgroundColor=fde68a`;
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden max-w-md mx-auto">
       <header className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
         <div>
           <h1 className="text-2xl font-black text-gradient">Spark</h1>
-          {activeTab === 'discover' && (
-            <p className="text-xs text-muted-foreground">Москва · 25 км</p>
+          {activeTab === 'discover' && auth.user && (
+            <p className="text-xs text-muted-foreground">{auth.user.city || 'Москва'} · {auth.user.search_radius || 25} км</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {activeTab === 'discover' && (
-            <>
-              <button className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center hover:bg-border transition-colors">
-                <Icon name="SlidersHorizontal" size={17} className="text-foreground" />
-              </button>
-              <button className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center hover:bg-border transition-colors">
-                <Icon name="Bell" size={17} className="text-foreground" />
-              </button>
-            </>
-          )}
-        </div>
+        {activeTab === 'discover' && (
+          <button
+            onClick={() => setActiveTab('profile')}
+            className="w-9 h-9 rounded-full overflow-hidden border-2 border-border hover:border-primary transition-colors"
+          >
+            <img src={avatarSrc} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).src = avatarSrc; }} />
+          </button>
+        )}
       </header>
 
       <main className="flex-1 relative overflow-hidden">
-        {activeTab === 'discover' && (
+        <div className={`absolute inset-0 ${activeTab !== 'discover' ? 'hidden' : ''}`}>
           <div className="absolute inset-0 px-4 pb-2">
-            <DiscoverPage onGoToMessages={() => setActiveTab('messages')} />
+            {auth.userId && <DiscoverPage onGoToMessages={() => setActiveTab('messages')} userId={auth.userId} />}
           </div>
-        )}
-        {activeTab === 'likes' && (
-          <div className="absolute inset-0">
-            <LikesPage />
-          </div>
-        )}
-        {activeTab === 'messages' && (
-          <div className="absolute inset-0">
-            <MatchesPage />
-          </div>
-        )}
-        {activeTab === 'profile' && (
-          <div className="absolute inset-0">
-            <ProfilePage />
-          </div>
-        )}
+        </div>
+        <div className={`absolute inset-0 ${activeTab !== 'likes' ? 'hidden' : ''}`}>
+          <LikesPage />
+        </div>
+        <div className={`absolute inset-0 ${activeTab !== 'messages' ? 'hidden' : ''}`}>
+          {auth.userId && <MatchesPage userId={auth.userId} />}
+        </div>
+        <div className={`absolute inset-0 ${activeTab !== 'profile' ? 'hidden' : ''}`}>
+          {auth.user && (
+            <ProfilePage user={auth.user} onLogout={auth.logout} onRefresh={auth.refreshUser} />
+          )}
+        </div>
       </main>
 
       <nav className="shrink-0 border-t border-border bg-white px-2">
         <div className="flex items-center justify-around py-2">
           {tabs.map(tab => {
             const isActive = activeTab === tab.id;
-            const badge = tab.id === 'messages' && unreadMessages > 0 ? unreadMessages : 0;
+            const badge = tab.id === 'messages' && unreadCount > 0 ? unreadCount : 0;
             return (
               <button
                 key={tab.id}
@@ -77,18 +109,12 @@ export default function Index() {
                 className="flex flex-col items-center gap-0.5 py-1.5 px-4 rounded-2xl transition-all"
               >
                 <div className="relative">
-                  {isActive ? (
-                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center gradient-brand">
-                      <Icon name={tab.icon} size={20} className="text-white" />
-                    </div>
-                  ) : (
-                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center">
-                      <Icon name={tab.icon} size={20} className="text-muted-foreground" />
-                    </div>
-                  )}
+                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isActive ? 'gradient-brand' : ''}`}>
+                    <Icon name={tab.icon} fallback="Circle" size={20} className={isActive ? 'text-white' : 'text-muted-foreground'} />
+                  </div>
                   {badge > 0 && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-black gradient-brand">
-                      {badge}
+                      {badge > 9 ? '9+' : badge}
                     </span>
                   )}
                 </div>

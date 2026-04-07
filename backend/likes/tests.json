@@ -1,0 +1,19 @@
+{
+  "tests": [
+    {
+      "name": "Like without auth",
+      "method": "POST",
+      "path": "/like",
+      "body": {"to_user_id": "00000000-0000-0000-0000-000000000000"},
+      "expectedStatus": 401,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Incoming without auth",
+      "method": "GET",
+      "path": "/incoming",
+      "expectedStatus": 401,
+      "bodyMatcher": "partial"
+    }
+  ]
+}

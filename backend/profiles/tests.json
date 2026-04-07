@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "name": "Discover without auth",
+      "method": "GET",
+      "path": "/discover",
+      "expectedStatus": 401,
+      "expectedBody": {"error": "string"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

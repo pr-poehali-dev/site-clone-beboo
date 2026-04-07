@@ -1,0 +1,11 @@
+{
+  "tests": [
+    {
+      "name": "List matches without auth",
+      "method": "GET",
+      "path": "/list",
+      "expectedStatus": 401,
+      "bodyMatcher": "partial"
+    }
+  ]
+}
