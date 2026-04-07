@@ -1,75 +1,103 @@
 import { useState } from 'react';
-import Sidebar from '@/components/Sidebar';
-import HomePage from '@/pages/HomePage';
-import FeedPage from '@/pages/FeedPage';
-import ProfilePage from '@/pages/ProfilePage';
-import MessagesPage from '@/pages/MessagesPage';
-import SearchPage from '@/pages/SearchPage';
-import NotificationsPage from '@/pages/NotificationsPage';
-import SettingsPage from '@/pages/SettingsPage';
-import { notifications } from '@/data/mockData';
-import { conversations } from '@/data/mockData';
+import DiscoverPage from './DiscoverPage';
+import MatchesPage from './MatchesPage';
+import LikesPage from './LikesPage';
+import ProfilePage from './ProfilePage';
 import Icon from '@/components/ui/icon';
+import { matches } from '@/data/profiles';
+
+type Tab = 'discover' | 'likes' | 'messages' | 'profile';
+
+const tabs: { id: Tab; icon: string; label: string }[] = [
+  { id: 'discover', icon: 'Flame', label: 'Смотреть' },
+  { id: 'likes', icon: 'Heart', label: 'Лайки' },
+  { id: 'messages', icon: 'MessageCircle', label: 'Чаты' },
+  { id: 'profile', icon: 'User', label: 'Профиль' },
+];
 
 export default function Index() {
-  const [activePage, setActivePage] = useState('home');
-
-  const unreadNotifications = notifications.filter(n => !n.read).length;
-  const unreadMessages = conversations.reduce((sum, c) => sum + c.unread, 0);
-
-  const renderPage = () => {
-    switch (activePage) {
-      case 'home': return <HomePage />;
-      case 'feed': return <FeedPage />;
-      case 'profile': return <ProfilePage />;
-      case 'messages': return <MessagesPage />;
-      case 'search': return <SearchPage />;
-      case 'notifications': return <NotificationsPage />;
-      case 'settings': return <SettingsPage />;
-      default: return <HomePage />;
-    }
-  };
+  const [activeTab, setActiveTab] = useState<Tab>('discover');
+  const unreadMessages = matches.reduce((sum, m) => sum + (m.unread || 0), 0);
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <div className="hidden lg:flex">
-        <Sidebar
-          active={activePage}
-          onNav={setActivePage}
-          unreadNotifications={unreadNotifications}
-          unreadMessages={unreadMessages}
-        />
-      </div>
+    <div className="h-screen flex flex-col bg-background overflow-hidden max-w-md mx-auto">
+      <header className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
+        <div>
+          <h1 className="text-2xl font-black text-gradient">Spark</h1>
+          {activeTab === 'discover' && (
+            <p className="text-xs text-muted-foreground">Москва · 25 км</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {activeTab === 'discover' && (
+            <>
+              <button className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center hover:bg-border transition-colors">
+                <Icon name="SlidersHorizontal" size={17} className="text-foreground" />
+              </button>
+              <button className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center hover:bg-border transition-colors">
+                <Icon name="Bell" size={17} className="text-foreground" />
+              </button>
+            </>
+          )}
+        </div>
+      </header>
 
-      <main className="flex-1 overflow-y-auto px-4 lg:px-8 pb-20 lg:pb-0">
-        {renderPage()}
+      <main className="flex-1 relative overflow-hidden">
+        {activeTab === 'discover' && (
+          <div className="absolute inset-0 px-4 pb-2">
+            <DiscoverPage onGoToMessages={() => setActiveTab('messages')} />
+          </div>
+        )}
+        {activeTab === 'likes' && (
+          <div className="absolute inset-0">
+            <LikesPage />
+          </div>
+        )}
+        {activeTab === 'messages' && (
+          <div className="absolute inset-0">
+            <MatchesPage />
+          </div>
+        )}
+        {activeTab === 'profile' && (
+          <div className="absolute inset-0">
+            <ProfilePage />
+          </div>
+        )}
       </main>
 
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 border-t border-border bg-background/95 backdrop-blur-sm px-2 py-2 z-50">
-        <div className="flex items-center justify-around">
-          {[
-            { id: 'home', icon: 'Home' },
-            { id: 'search', icon: 'Search' },
-            { id: 'feed', icon: 'Rss' },
-            { id: 'messages', icon: 'MessageSquare', badge: unreadMessages },
-            { id: 'notifications', icon: 'Bell', badge: unreadNotifications },
-            { id: 'profile', icon: 'User' },
-          ].map(item => (
-            <button
-              key={item.id}
-              onClick={() => setActivePage(item.id)}
-              className={`relative flex flex-col items-center p-2 rounded-xl transition-all ${
-                activePage === item.id ? 'text-gold' : 'text-muted-foreground'
-              }`}
-            >
-              <Icon name={item.icon} fallback="Circle" size={22} />
-              {item.badge && item.badge > 0 ? (
-                <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-destructive rounded-full text-[9px] flex items-center justify-center text-white font-bold">
-                  {item.badge > 9 ? '9+' : item.badge}
+      <nav className="shrink-0 border-t border-border bg-white px-2">
+        <div className="flex items-center justify-around py-2">
+          {tabs.map(tab => {
+            const isActive = activeTab === tab.id;
+            const badge = tab.id === 'messages' && unreadMessages > 0 ? unreadMessages : 0;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className="flex flex-col items-center gap-0.5 py-1.5 px-4 rounded-2xl transition-all"
+              >
+                <div className="relative">
+                  {isActive ? (
+                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center gradient-brand">
+                      <Icon name={tab.icon} size={20} className="text-white" />
+                    </div>
+                  ) : (
+                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center">
+                      <Icon name={tab.icon} size={20} className="text-muted-foreground" />
+                    </div>
+                  )}
+                  {badge > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-black gradient-brand">
+                      {badge}
+                    </span>
+                  )}
+                </div>
+                <span className={`text-[10px] font-bold ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
+                  {tab.label}
                 </span>
-              ) : null}
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       </nav>
     </div>

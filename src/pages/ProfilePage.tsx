@@ -1,141 +1,190 @@
 import { useState } from 'react';
-import { currentUser, posts as allPosts } from '@/data/mockData';
-import { Post } from '@/types';
-import PostCard from '@/components/PostCard';
-import PostEditor from '@/components/PostEditor';
 import Icon from '@/components/ui/icon';
 
-function formatNumber(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return String(n);
-}
+const myProfile = {
+  name: 'Максим',
+  age: 27,
+  city: 'Москва',
+  bio: 'Люблю горы, хорошую музыку и вкусный кофе. В поисках человека с которым не надо притворяться ☕',
+  photos: [
+    'https://cdn.poehali.dev/projects/9af0fc17-cee5-4084-8bef-c980d431deb0/files/879cfcb5-89e9-4b99-accc-9cedcc0b7039.jpg',
+  ],
+  tags: ['Музыка', 'Горы', 'Кофе', 'Кино', 'Спорт'],
+  job: 'Продуктовый менеджер',
+  education: 'МГТУ',
+  height: 182,
+};
 
-const profileTabs = ['Публикации', 'Медиа', 'Сохранённые'];
+const stats = [
+  { label: 'Лайков', value: '124', icon: 'Heart' },
+  { label: 'Мэтчей', value: '18', icon: 'Zap' },
+  { label: 'Просмотров', value: '1.2k', icon: 'Eye' },
+];
+
+const settingsSections = [
+  {
+    title: 'Предпочтения',
+    items: [
+      { icon: 'MapPin', label: 'Радиус поиска', value: '25 км' },
+      { icon: 'Users', label: 'Показывать', value: 'Всех' },
+      { icon: 'Calendar', label: 'Возраст', value: '20–35 лет' },
+    ]
+  },
+  {
+    title: 'Аккаунт',
+    items: [
+      { icon: 'Bell', label: 'Уведомления', value: 'Включены' },
+      { icon: 'Shield', label: 'Конфиденциальность', value: '' },
+      { icon: 'HelpCircle', label: 'Поддержка', value: '' },
+    ]
+  },
+];
 
 export default function ProfilePage() {
-  const [activeTab, setActiveTab] = useState('Публикации');
-  const [editingPost, setEditingPost] = useState<Post | null>(null);
-  const [userPosts, setUserPosts] = useState<Post[]>(
-    allPosts.filter(p => p.author.id === currentUser.id)
-  );
-
-  const handleEdit = (content: string, images: string[], video?: string) => {
-    if (!editingPost) return;
-    setUserPosts(userPosts.map(p =>
-      p.id === editingPost.id
-        ? { ...p, content, images: images.length > 0 ? images : undefined, video }
-        : p
-    ));
-    setEditingPost(null);
-  };
-
-  const handleDelete = (postId: string) => {
-    setUserPosts(userPosts.filter(p => p.id !== postId));
-  };
-
-  const mediaPosts = userPosts.filter(p => p.images || p.video);
-  const savedPosts = allPosts.filter(p => p.bookmarked);
-
-  const displayPosts = activeTab === 'Публикации' ? userPosts
-    : activeTab === 'Медиа' ? mediaPosts
-    : savedPosts;
+  const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('profile');
 
   return (
-    <div className="max-w-xl mx-auto py-6 space-y-6">
-      <div className="rounded-2xl border border-border bg-card overflow-hidden">
-        <div className="h-28 bg-gradient-to-br from-gold/20 via-secondary to-background relative">
-          <div className="absolute inset-0 opacity-30"
-            style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, hsl(43 74% 66% / 0.4) 0%, transparent 60%)' }}
-          />
+    <div className="h-full overflow-y-auto">
+      <div className="relative">
+        <div className="h-36 w-full"
+          style={{ background: 'linear-gradient(135deg, hsl(340 82% 58%), hsl(262 80% 64%))' }}
+        />
+        <div className="absolute top-0 right-0 p-4">
+          <button className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+            <Icon name="Settings" size={18} className="text-white" />
+          </button>
         </div>
 
-        <div className="px-5 pb-5">
-          <div className="flex items-end justify-between -mt-10 mb-4">
+        <div className="px-4 pb-6">
+          <div className="flex items-end justify-between -mt-14 mb-4">
             <div className="relative">
               <img
-                src={currentUser.avatar}
-                alt={currentUser.name}
-                className="w-20 h-20 rounded-full object-cover border-4 border-card bg-secondary"
+                src={myProfile.photos[0]}
+                alt={myProfile.name}
+                className="w-28 h-28 rounded-3xl object-cover border-4 border-white card-shadow"
               />
-              {currentUser.verified && (
-                <span className="absolute bottom-1 right-1 w-5 h-5 bg-gold rounded-full flex items-center justify-center">
-                  <Icon name="Check" size={11} className="text-background" />
-                </span>
-              )}
+              <button
+                className="absolute bottom-1 right-1 w-7 h-7 rounded-full flex items-center justify-center shadow-md"
+                style={{ background: 'linear-gradient(135deg, hsl(340 82% 58%), hsl(262 80% 64%))' }}
+              >
+                <Icon name="Camera" size={13} className="text-white" />
+              </button>
             </div>
-            <button className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-secondary transition-all">
-              <Icon name="Pencil" size={14} />
-              Редактировать
+            <button className="mb-1 px-5 py-2.5 rounded-2xl border-2 border-primary text-primary text-sm font-bold hover:bg-primary/5 transition-colors">
+              Изменить
             </button>
           </div>
 
-          <div className="space-y-2">
-            <div>
-              <h2 className="font-cormorant text-2xl font-semibold text-foreground">{currentUser.name}</h2>
-              <p className="text-sm text-muted-foreground">@{currentUser.username}</p>
+          <div className="mb-4">
+            <h2 className="text-2xl font-black text-foreground">{myProfile.name}, {myProfile.age}</h2>
+            <div className="flex items-center gap-1.5 text-muted-foreground text-sm mt-1">
+              <Icon name="MapPin" size={14} />
+              <span>{myProfile.city}</span>
+              <span>·</span>
+              <Icon name="Briefcase" size={14} />
+              <span>{myProfile.job}</span>
             </div>
-            <p className="text-sm text-foreground/80">{currentUser.bio}</p>
           </div>
 
-          <div className="flex gap-6 mt-4">
-            {[
-              { label: 'публикаций', value: userPosts.length },
-              { label: 'подписчиков', value: currentUser.followers },
-              { label: 'подписок', value: currentUser.following },
-            ].map(stat => (
-              <div key={stat.label} className="text-center">
-                <p className="font-cormorant text-2xl font-semibold text-foreground">{formatNumber(stat.value)}</p>
+          <div className="grid grid-cols-3 gap-3 mb-5">
+            {stats.map(stat => (
+              <div key={stat.label} className="rounded-2xl bg-secondary p-3 text-center">
+                <Icon name={stat.icon} size={20} className="text-primary mx-auto mb-1" />
+                <p className="font-black text-lg text-foreground">{stat.value}</p>
                 <p className="text-xs text-muted-foreground">{stat.label}</p>
               </div>
             ))}
           </div>
-        </div>
-      </div>
 
-      <div className="flex gap-1 p-1 bg-secondary rounded-xl">
-        {profileTabs.map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab
-                ? 'bg-card text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+          <div className="flex gap-2 mb-5">
+            {(['profile', 'settings'] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`flex-1 py-2.5 rounded-2xl text-sm font-bold transition-all ${
+                  activeTab === tab ? 'btn-primary text-white' : 'bg-secondary text-muted-foreground'
+                }`}
+              >
+                {tab === 'profile' ? 'Профиль' : 'Настройки'}
+              </button>
+            ))}
+          </div>
 
-      {editingPost && (
-        <PostEditor
-          currentUser={currentUser}
-          editPost={editingPost}
-          onSubmit={handleEdit}
-          onCancel={() => setEditingPost(null)}
-        />
-      )}
+          {activeTab === 'profile' ? (
+            <div className="space-y-4 animate-fade-in">
+              <div className="rounded-2xl border border-border p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">О себе</p>
+                  <button><Icon name="Pencil" size={14} className="text-muted-foreground" /></button>
+                </div>
+                <p className="text-sm text-foreground leading-relaxed">{myProfile.bio}</p>
+              </div>
 
-      {displayPosts.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <Icon name="FileText" size={40} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm">Публикаций пока нет</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {displayPosts.map((post, i) => (
-            <div key={post.id} className="animate-fade-in" style={{ animationDelay: `${i * 0.05}s` }}>
-              <PostCard
-                post={post}
-                onEdit={setEditingPost}
-                onDelete={handleDelete}
-                isOwn={post.author.id === currentUser.id}
-              />
+              <div className="rounded-2xl border border-border p-4">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Интересы</p>
+                <div className="flex flex-wrap gap-2">
+                  {myProfile.tags.map(tag => (
+                    <span key={tag} className="px-3 py-1.5 rounded-full gradient-brand-soft text-primary text-xs font-bold">
+                      {tag}
+                    </span>
+                  ))}
+                  <button className="px-3 py-1.5 rounded-full border-2 border-dashed border-border text-muted-foreground text-xs font-bold hover:border-primary hover:text-primary transition-colors">
+                    + Добавить
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border p-4 space-y-3">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Детали</p>
+                {[
+                  { icon: 'Ruler', label: 'Рост', value: `${myProfile.height} см` },
+                  { icon: 'GraduationCap', label: 'Образование', value: myProfile.education },
+                ].map(item => (
+                  <div key={item.label} className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center">
+                      <Icon name={item.icon} size={16} className="text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">{item.label}</p>
+                      <p className="text-sm font-semibold text-foreground">{item.value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
+          ) : (
+            <div className="space-y-5 animate-fade-in">
+              {settingsSections.map(section => (
+                <div key={section.title}>
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">{section.title}</p>
+                  <div className="rounded-2xl border border-border overflow-hidden">
+                    {section.items.map((item, i) => (
+                      <div
+                        key={item.label}
+                        className={`flex items-center gap-3 px-4 py-3.5 hover:bg-secondary/60 transition-colors cursor-pointer ${
+                          i < section.items.length - 1 ? 'border-b border-border/50' : ''
+                        }`}
+                      >
+                        <div className="w-9 h-9 rounded-xl gradient-brand-soft flex items-center justify-center">
+                          <Icon name={item.icon} size={16} className="text-primary" />
+                        </div>
+                        <span className="flex-1 text-sm font-semibold text-foreground">{item.label}</span>
+                        <div className="flex items-center gap-1.5">
+                          {item.value && <span className="text-sm text-muted-foreground">{item.value}</span>}
+                          <Icon name="ChevronRight" size={16} className="text-muted-foreground" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <button className="w-full py-3.5 rounded-2xl border-2 border-rose-200 text-rose-500 text-sm font-bold hover:bg-rose-50 transition-colors">
+                Выйти из аккаунта
+              </button>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

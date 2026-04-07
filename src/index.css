@@ -4,39 +4,26 @@
 
 @layer base {
   :root {
-    --background: 20 14% 6%;
-    --foreground: 40 20% 92%;
-
-    --card: 20 12% 9%;
-    --card-foreground: 40 20% 92%;
-
-    --popover: 20 12% 9%;
-    --popover-foreground: 40 20% 92%;
-
-    --primary: 43 74% 66%;
-    --primary-foreground: 20 14% 6%;
-
-    --secondary: 20 10% 14%;
-    --secondary-foreground: 40 20% 80%;
-
-    --muted: 20 10% 14%;
-    --muted-foreground: 40 10% 50%;
-
-    --accent: 43 74% 66%;
-    --accent-foreground: 20 14% 6%;
-
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 40 20% 92%;
-
-    --border: 20 10% 16%;
-    --input: 20 10% 14%;
-    --ring: 43 74% 66%;
-
-    --radius: 0.75rem;
-
-    --gold: 43 74% 66%;
-    --coal: 20 14% 6%;
-    --ash: 20 10% 14%;
+    --background: 0 0% 98%;
+    --foreground: 220 20% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 10%;
+    --primary: 340 82% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 20% 30%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 10% 52%;
+    --accent: 262 80% 64%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 340 82% 58%;
+    --radius: 1rem;
   }
 }
 
@@ -44,45 +31,55 @@
   * {
     @apply border-border;
   }
-
   body {
     @apply bg-background text-foreground;
-    font-family: "IBM Plex Sans", sans-serif;
+    font-family: "Nunito", sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
-
-  h1,
-  h2,
-  h3 {
-    font-family: "Cormorant", serif;
-  }
-
   ::-webkit-scrollbar {
-    width: 4px;
-  }
-  ::-webkit-scrollbar-track {
-    background: hsl(var(--background));
-  }
-  ::-webkit-scrollbar-thumb {
-    background: hsl(var(--border));
-    border-radius: 2px;
+    width: 0px;
   }
 }
 
 @layer utilities {
+  .gradient-brand {
+    background: linear-gradient(135deg, hsl(340 82% 58%), hsl(262 80% 64%));
+  }
+  .gradient-brand-soft {
+    background: linear-gradient(135deg, hsl(340 82% 96%), hsl(262 80% 96%));
+  }
+  .gradient-card {
+    background: linear-gradient(
+      180deg,
+      transparent 35%,
+      rgba(0, 0, 0, 0.88) 100%
+    );
+  }
+  .text-gradient {
+    background: linear-gradient(135deg, hsl(340 82% 52%), hsl(262 80% 58%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
   .animate-fade-in {
-    animation: fadeIn 0.3s ease forwards;
+    animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
   .animate-slide-up {
     animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
-  .animate-scale-in {
-    animation: scaleIn 0.2s ease forwards;
+  .animate-bounce-in {
+    animation: bounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   }
-
+  .animate-swipe-left {
+    animation: swipeLeft 0.42s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  .animate-swipe-right {
+    animation: swipeRight 0.42s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
   @keyframes fadeIn {
     from {
       opacity: 0;
-      transform: translateY(8px);
+      transform: translateY(10px);
     }
     to {
       opacity: 1;
@@ -92,48 +89,53 @@
   @keyframes slideUp {
     from {
       opacity: 0;
-      transform: translateY(24px);
+      transform: translateY(30px);
     }
     to {
       opacity: 1;
       transform: translateY(0);
     }
   }
-  @keyframes scaleIn {
+  @keyframes bounceIn {
     from {
       opacity: 0;
-      transform: scale(0.96);
+      transform: scale(0.72);
     }
     to {
       opacity: 1;
       transform: scale(1);
     }
   }
-
-  .glass {
-    background: rgba(255, 255, 255, 0.04);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.07);
+  @keyframes swipeLeft {
+    to {
+      opacity: 0;
+      transform: translateX(-130%) rotate(-22deg);
+    }
   }
-
-  .gold-text {
-    color: hsl(var(--gold));
+  @keyframes swipeRight {
+    to {
+      opacity: 0;
+      transform: translateX(130%) rotate(22deg);
+    }
   }
-
-  .nav-item {
-    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary transition-all duration-200 cursor-pointer;
+  .card-shadow {
+    box-shadow:
+      0 24px 64px -12px rgba(0, 0, 0, 0.14),
+      0 4px 16px -4px rgba(0, 0, 0, 0.07);
   }
-
-  .nav-item.active {
-    @apply text-foreground bg-secondary;
-    color: hsl(var(--gold));
+  .btn-primary {
+    background: linear-gradient(135deg, hsl(340 82% 58%), hsl(262 80% 64%));
+    color: white;
+    font-weight: 700;
+    border-radius: 1rem;
+    transition: all 0.2s;
+    box-shadow: 0 8px 24px -4px hsl(340 82% 58% / 0.35);
   }
-
-  .post-card {
-    @apply rounded-2xl border border-border bg-card p-5 transition-all duration-300;
+  .btn-primary:hover {
+    box-shadow: 0 12px 32px -4px hsl(340 82% 58% / 0.5);
+    transform: translateY(-1px);
   }
-
-  .post-card:hover {
-    border-color: hsl(var(--gold) / 0.3);
+  .btn-primary:active {
+    transform: scale(0.96);
   }
 }
