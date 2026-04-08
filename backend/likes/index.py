@@ -24,6 +24,7 @@ def fix_photos(photos):
     return [url.replace('/files/spark/', '/bucket/spark/') for url in (photos or [])]
 
 def handler(event: dict, context) -> dict:
+    """Лайки, пропуски, избранные, буст, боты"""
     if event.get('httpMethod') == 'OPTIONS':
         return {'statusCode': 200, 'headers': CORS, 'body': ''}
 

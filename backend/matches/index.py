@@ -57,6 +57,7 @@ def msg_dict(m, user_id):
     }
 
 def handler(event: dict, context) -> dict:
+    """Мэтчи, сообщения, чат"""
     if event.get('httpMethod') == 'OPTIONS':
         return {'statusCode': 200, 'headers': CORS, 'body': ''}
 

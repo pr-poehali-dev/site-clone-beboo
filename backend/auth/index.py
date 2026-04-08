@@ -111,6 +111,7 @@ def send_email(to_email: str, subject: str, html_body: str, cur) -> bool:
         return False
 
 def handler(event: dict, context) -> dict:
+    """Авторизация, регистрация, сессии, ежедневные награды"""
     if event.get('httpMethod') == 'OPTIONS':
         return {'statusCode': 200, 'headers': CORS, 'body': ''}
 

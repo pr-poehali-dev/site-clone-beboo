@@ -17,6 +17,26 @@ function getToken(): string {
 
 const FETCH_TIMEOUT = 30000; // 30 секунд таймаут (учитываем холодный старт функций ~16с)
 
+async function doFetch(url: string, method: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+  try {
+    return await fetch(url, {
+      method,
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': getToken(),
+        ...extraHeaders,
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function req<T>(
   service: keyof typeof URLS,
   action: string,
@@ -28,32 +48,35 @@ async function req<T>(
   const params = new URLSearchParams({ action, ...extraParams });
   const url = `${URLS[service]}?${params}`;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-
   let res: Response;
-  try {
-    res = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Auth-Token': getToken(),
-        ...extraHeaders,
-      },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-    });
-  } catch (e: unknown) {
-    if (e instanceof Error && e.name === 'AbortError') {
-      throw new Error('Сервер не отвечает. Попробуйте ещё раз.');
+  let lastError: unknown;
+
+  // Retry 1 раз при сетевой ошибке (холодный старт, CORS от платформы)
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      res = await doFetch(url, method, body, extraHeaders);
+      break;
+    } catch (e: unknown) {
+      lastError = e;
+      if (e instanceof Error && e.name === 'AbortError') {
+        throw new Error('Сервер долго отвечает. Попробуйте ещё раз.');
+      }
+      if (attempt === 0) {
+        // Ждём 2 секунды перед retry
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      console.error('Fetch error:', (e as Error).message, 'for', url);
+      throw new Error('Не удалось подключиться к серверу. Попробуйте через несколько секунд.');
     }
-    // TypeError: Failed to fetch — сеть или CORS
-    if (e instanceof TypeError) {
-      throw new Error('Не удалось подключиться к серверу. Попробуйте ещё раз.');
-    }
-    throw new Error('Ошибка соединения. Попробуйте ещё раз.');
-  } finally {
-    clearTimeout(timeoutId);
+  }
+
+  // @ts-expect-error res всегда присвоен после цикла
+  if (!res) throw new Error('Ошибка соединения');
+
+  // 402 от платформы — лимит вызовов
+  if (res.status === 402) {
+    throw new Error('Сервер временно недоступен. Подождите минуту и попробуйте снова.');
   }
 
   let data: unknown;
