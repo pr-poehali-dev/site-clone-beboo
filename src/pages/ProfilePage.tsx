@@ -10,35 +10,44 @@ interface ProfilePageProps {
 
 const TAGS_OPTIONS = ['Спорт', 'Путешествия', 'Кофе', 'Музыка', 'Кино', 'Искусство', 'Книги', 'Горы', 'Танцы', 'Кулинария', 'Йога', 'Фото', 'Игры', 'Природа'];
 
-function PremiumModal({ onClose }: { onClose: () => void }) {
+function PremiumModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: () => Promise<void> }) {
   const plans = [
     { id: '1m', label: '1 месяц', price: '299 ₽', per: '299 ₽/мес', popular: false },
     { id: '3m', label: '3 месяца', price: '699 ₽', per: '233 ₽/мес', popular: true },
     { id: '12m', label: '12 месяцев', price: '1 999 ₽', per: '167 ₽/мес', popular: false },
   ];
   const [selected, setSelected] = useState('3m');
+  const [activating, setActivating] = useState(false);
+
+  const activateTrial = async () => {
+    setActivating(true);
+    try {
+      const r = await api.likes.trial();
+      await onRefresh();
+      alert(`Premium активирован на ${r.days} дня! Наслаждайтесь.`);
+      onClose();
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Не удалось активировать триал');
+    } finally { setActivating(false); }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end justify-center p-4">
-      <div className="bg-white rounded-3xl p-6 w-full max-w-sm animate-slide-up">
-        {/* Header */}
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl p-6 w-full max-w-sm animate-slide-up" onClick={e => e.stopPropagation()}>
         <div className="text-center mb-5">
           <div className="w-16 h-16 rounded-3xl mx-auto mb-3 flex items-center justify-center text-3xl"
-            style={{ background: 'linear-gradient(135deg, hsl(340 82% 58%), hsl(262 80% 64%))' }}>
-            ⭐
-          </div>
+            style={{ background: 'linear-gradient(135deg, hsl(340 82% 58%), hsl(262 80% 64%))' }}>⭐</div>
           <h2 className="text-xl font-black text-foreground">Spark Premium</h2>
           <p className="text-sm text-muted-foreground mt-1">Больше лайков, видимости и возможностей</p>
         </div>
 
-        {/* Преимущества */}
         <div className="space-y-2 mb-5">
           {[
             { icon: 'Heart', text: 'Безлимитные лайки каждый день' },
             { icon: 'Eye', text: 'Видишь кто лайкнул тебя' },
             { icon: 'Star', text: '5 суперлайков в день' },
-            { icon: 'Zap', text: '1 буст профиля в месяц' },
-            { icon: 'RefreshCw', text: 'Отмена последнего свайпа' },
+            { icon: 'Zap', text: '5 бустов профиля в месяц' },
+            { icon: 'Bookmark', text: 'Избранные анкеты' },
           ].map(f => (
             <div key={f.icon} className="flex items-center gap-3">
               <div className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg, hsl(340 82% 58%), hsl(262 80% 64%))' }}>
@@ -49,7 +58,6 @@ function PremiumModal({ onClose }: { onClose: () => void }) {
           ))}
         </div>
 
-        {/* Тарифы */}
         <div className="space-y-2 mb-5">
           {plans.map(p => (
             <button key={p.id} onClick={() => setSelected(p.id)}
@@ -71,10 +79,11 @@ function PremiumModal({ onClose }: { onClose: () => void }) {
           ))}
         </div>
 
-        <button className="w-full py-3.5 rounded-2xl text-white font-black text-sm mb-3"
+        <button className="w-full py-3.5 rounded-2xl text-white font-black text-sm mb-3 disabled:opacity-60"
           style={{ background: 'linear-gradient(135deg, hsl(340 82% 58%), hsl(262 80% 64%))' }}
-          onClick={() => { alert('Оплата в разработке. Обратись к администратору для получения Premium.'); onClose(); }}>
-          Попробовать бесплатно 7 дней
+          disabled={activating}
+          onClick={activateTrial}>
+          {activating ? 'Активация...' : 'Попробовать бесплатно 3 дня'}
         </button>
         <button onClick={onClose} className="w-full py-3 text-sm text-muted-foreground font-semibold">
           Не сейчас
@@ -335,7 +344,7 @@ export default function ProfilePage({ user, onLogout, onRefresh }: ProfilePagePr
         )}
       </div>
 
-      {showPremium && <PremiumModal onClose={() => setShowPremium(false)} />}
+      {showPremium && <PremiumModal onClose={() => setShowPremium(false)} onRefresh={onRefresh} />}
     </div>
   );
 }

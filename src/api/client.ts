@@ -59,6 +59,11 @@ export const api = {
       req<{ is_match: boolean; match_id: string | null; profile: { name: string; photo: string } }>('likes', 'like', 'POST', { to_user_id, is_super }),
     pass: (to_user_id: string) => req<{ ok: boolean }>('likes', 'pass', 'POST', { to_user_id }),
     incoming: () => req<{ likes: IncomingLike[] }>('likes', 'incoming', 'GET'),
+    boost: () => req<BoostResult>('likes', 'boost', 'POST'),
+    favorite: (target_id: string) => req<{ ok: boolean }>('likes', 'favorite', 'POST', { target_id }),
+    unfavorite: (target_id: string) => req<{ ok: boolean }>('likes', 'unfavorite', 'POST', { target_id }),
+    favorites: () => req<{ favorites: FavoriteProfile[] }>('likes', 'favorites', 'GET'),
+    trial: () => req<{ ok: boolean; days: number }>('likes', 'trial', 'POST'),
   },
   matches: {
     list: () => req<{ matches: Match[] }>('matches', 'list', 'GET'),
@@ -84,6 +89,8 @@ export const api = {
     reports: () => adminReq<{ reports: Report[] }>('reports'),
     resolveReport: (report_id: string) => adminReq<{ ok: boolean }>('resolve_report', 'POST', { report_id }),
     topUsers: () => adminReq<{ users: TopUser[] }>('top_users'),
+    userMatches: (user_id: string) => adminReq<{ matches: AdminMatch[] }>('user_matches', 'GET', undefined, { user_id }),
+    readChat: (match_id: string) => adminReq<{ messages: AdminMessage[] }>('read_chat', 'GET', undefined, { match_id }),
   },
 };
 
@@ -133,4 +140,18 @@ export interface Report {
 }
 export interface TopUser {
   user_id: string; name: string; age: number; messages: number; matches: number; is_premium: boolean; verified: boolean;
+}
+export interface BoostResult {
+  ok: boolean; boost_id: string; expires_at: string; used: number; limit: number; duration_min: number;
+}
+export interface FavoriteProfile {
+  user_id: string; name: string; photo: string; age: number; city: string; verified: boolean; bio: string; created_at: string;
+}
+export interface AdminMatch {
+  match_id: string; other_id: string; other_name: string; other_photo: string;
+  created_at: string; last_message: string; messages_count: number;
+}
+export interface AdminMessage {
+  id: string; sender_id: string; text: string; image_url: string | null;
+  msg_type: string; created_at: string; sender_name: string;
 }

@@ -6,14 +6,16 @@ import MatchesPage from './MatchesPage';
 import LikesPage from './LikesPage';
 import ProfilePage from './ProfilePage';
 import AdminPage from './AdminPage';
+import FavoritesPage from './FavoritesPage';
 import Icon from '@/components/ui/icon';
 import { api } from '@/api/client';
 
-type Tab = 'discover' | 'likes' | 'messages' | 'profile';
+type Tab = 'discover' | 'likes' | 'favorites' | 'messages' | 'profile';
 
 const tabs: { id: Tab; icon: string; label: string }[] = [
   { id: 'discover', icon: 'Flame', label: 'Смотреть' },
   { id: 'likes', icon: 'Heart', label: 'Лайки' },
+  { id: 'favorites', icon: 'Bookmark', label: 'Избранное' },
   { id: 'messages', icon: 'MessageCircle', label: 'Чаты' },
   { id: 'profile', icon: 'User', label: 'Профиль' },
 ];
@@ -93,6 +95,9 @@ export default function Index() {
         </div>
         <div className={`absolute inset-0 ${activeTab !== 'likes' ? 'hidden' : ''}`}>
           <LikesPage onGoToMessages={() => setActiveTab('messages')} />
+        </div>
+        <div className={`absolute inset-0 ${activeTab !== 'favorites' ? 'hidden' : ''}`}>
+          <FavoritesPage />
         </div>
         <div className={`absolute inset-0 ${activeTab !== 'messages' ? 'hidden' : ''}`}>
           {auth.userId && <MatchesPage userId={auth.userId} />}

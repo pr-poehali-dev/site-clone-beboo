@@ -281,6 +281,48 @@ def handler(event: dict, context) -> dict:
                  'messages': r[3], 'matches': r[4], 'is_premium': r[5], 'verified': r[6]} for r in rows
             ]})}
 
+        # ── Мэтчи пользователя (для админа) ─────────────────────────────
+        if action == 'user_matches':
+            uid = params.get('user_id', '')
+            cur.execute("""
+                SELECT m.id,
+                    CASE WHEN m.user1_id = %s THEN m.user2_id ELSE m.user1_id END AS other_id,
+                    m.created_at,
+                    (SELECT text FROM spark_messages WHERE match_id = m.id ORDER BY created_at DESC LIMIT 1),
+                    (SELECT COUNT(*) FROM spark_messages WHERE match_id = m.id)
+                FROM spark_matches m
+                WHERE m.user1_id = %s OR m.user2_id = %s
+                ORDER BY m.created_at DESC LIMIT 50
+            """, (uid, uid, uid))
+            rows = cur.fetchall()
+            result = []
+            for r in rows:
+                cur.execute("SELECT name, photos FROM spark_profiles WHERE user_id = %s", (r[1],))
+                p = cur.fetchone()
+                result.append({
+                    'match_id': str(r[0]), 'other_id': str(r[1]),
+                    'other_name': p[0] if p else '?', 'other_photo': ((p[1] or [''])[0]) if p else '',
+                    'created_at': r[2].isoformat(), 'last_message': r[3] or '',
+                    'messages_count': r[4],
+                })
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'matches': result})}
+
+        # ── Переписка в мэтче (для админа) ───────────────────────────────
+        if action == 'read_chat':
+            match_id = params.get('match_id', '')
+            cur.execute("""
+                SELECT m.id, m.sender_id, m.text, m.image_url, m.msg_type, m.created_at, p.name
+                FROM spark_messages m
+                LEFT JOIN spark_profiles p ON p.user_id = m.sender_id
+                WHERE m.match_id = %s ORDER BY m.created_at ASC LIMIT 200
+            """, (match_id,))
+            msgs = cur.fetchall()
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'messages': [
+                {'id': str(r[0]), 'sender_id': str(r[1]), 'text': r[2] or '', 'image_url': r[3],
+                 'msg_type': r[4] or 'text', 'created_at': r[5].isoformat(), 'sender_name': r[6] or '?'}
+                for r in msgs
+            ]})}
+
         return {'statusCode': 404, 'headers': CORS, 'body': json.dumps({'error': 'Unknown action'})}
 
     finally:

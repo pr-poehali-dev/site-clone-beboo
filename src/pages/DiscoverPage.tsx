@@ -14,6 +14,7 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
   const [loading, setLoading] = useState(true);
   const [matchData, setMatchData] = useState<{ name: string; photo: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [boosting, setBoosting] = useState(false);
   const topCardRef = useRef<SwipeCardRef>(null);
 
   useEffect(() => {
@@ -163,12 +164,24 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
             <Icon name="Heart" size={26} className="text-white" />
           </button>
 
-          {/* Буст (заглушка) */}
+          {/* Буст */}
           <button
-            className="w-12 h-12 rounded-full bg-white border-2 border-amber-200 flex items-center justify-center shadow-md hover:border-amber-400 hover:scale-110 active:scale-95 transition-all"
-            onClick={() => {}}
+            className="w-12 h-12 rounded-full bg-white border-2 border-amber-200 flex items-center justify-center shadow-md hover:border-amber-400 hover:scale-110 active:scale-95 transition-all disabled:opacity-40"
+            disabled={boosting}
+            onClick={async () => {
+              setBoosting(true);
+              try {
+                const r = await api.likes.boost();
+                alert(`Буст активирован на ${r.duration_min} мин! Использовано ${r.used}/${r.limit} в этом месяце.`);
+              } catch (e: unknown) {
+                alert(e instanceof Error ? e.message : 'Лимит бустов исчерпан');
+              } finally { setBoosting(false); }
+            }}
           >
-            <Icon name="Zap" size={20} className="text-amber-400" />
+            {boosting
+              ? <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+              : <Icon name="Zap" size={20} className="text-amber-400" />
+            }
           </button>
         </div>
       )}
