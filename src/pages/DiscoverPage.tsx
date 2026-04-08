@@ -5,14 +5,14 @@ import MatchModal from '@/components/MatchModal';
 import Icon from '@/components/ui/icon';
 
 interface DiscoverPageProps {
-  onGoToMessages: () => void;
+  onGoToMessages: (matchId?: string) => void;
   userId: string;
 }
 
 export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPageProps) {
   const [deck, setDeck] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [matchData, setMatchData] = useState<{ name: string; photo: string } | null>(null);
+  const [matchData, setMatchData] = useState<{ name: string; photo: string; matchId: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [boosting, setBoosting] = useState(false);
   const [undoing, setUndoing] = useState(false);
@@ -46,7 +46,7 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
     try {
       const res = await api.likes.like(top.user_id, false);
       if (res.is_match && res.match_id) {
-        setMatchData(res.profile);
+        setMatchData({ ...res.profile, matchId: res.match_id });
       }
     } catch { /* ignore */ }
   }, [deck]);
@@ -69,7 +69,7 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
     try {
       const res = await api.likes.like(top.user_id, true);
       if (res.is_match && res.match_id) {
-        setMatchData(res.profile);
+        setMatchData({ ...res.profile, matchId: res.match_id });
       }
     } catch { /* ignore */ }
   }, [deck]);
@@ -226,7 +226,7 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
           profileName={matchData.name}
           profilePhoto={matchData.photo}
           onClose={() => setMatchData(null)}
-          onMessage={() => { setMatchData(null); onGoToMessages(); }}
+          onMessage={() => { setMatchData(null); onGoToMessages(matchData.matchId); }}
         />
       )}
     </div>

@@ -276,6 +276,42 @@ def handler(event: dict, context) -> dict:
                 cur.execute("UPDATE spark_profiles SET photos = %s WHERE user_id = %s", (fixed_photos, user_id))
                 conn.commit()
 
+            # ── Ежедневная награда ────────────────────────────────────────
+            daily_reward = None
+            if get_setting(cur, 'daily_reward_enabled', 'true') == 'true':
+                import datetime as dt
+                today = dt.date.today()
+                cur.execute("""
+                    SELECT claimed_date FROM spark_daily_rewards
+                    WHERE user_id = %s ORDER BY claimed_date DESC LIMIT 1
+                """, (user_id,))
+                last_row = cur.fetchone()
+                if not last_row or last_row[0] != today:
+                    # Серия дней подряд
+                    cur.execute("""
+                        SELECT COUNT(*) FROM spark_daily_rewards
+                        WHERE user_id = %s AND claimed_date >= CURRENT_DATE - INTERVAL '6 days'
+                    """, (user_id,))
+                    streak = min((cur.fetchone()[0] or 0) + 1, 7)
+                    coins_key = f'daily_reward_day{streak}'
+                    coins = int(get_setting(cur, coins_key, get_setting(cur, 'daily_reward_default', '10')))
+                    cur.execute("""
+                        INSERT INTO spark_daily_rewards (user_id, day_number, coins, claimed_date)
+                        VALUES (%s, %s, %s, CURRENT_DATE)
+                        ON CONFLICT (user_id, claimed_date) DO NOTHING
+                    """, (user_id, streak, coins))
+                    if cur.rowcount > 0:
+                        cur.execute("""
+                            INSERT INTO spark_wallets (user_id, balance) VALUES (%s, %s)
+                            ON CONFLICT (user_id) DO UPDATE SET balance = spark_wallets.balance + %s, updated_at = NOW()
+                        """, (user_id, coins, coins))
+                        cur.execute("""
+                            INSERT INTO spark_wallet_txs (user_id, amount, type, description)
+                            VALUES (%s, %s, 'topup', %s)
+                        """, (user_id, coins, f'Ежедневная награда — день {streak} 🎁'))
+                        conn.commit()
+                        daily_reward = {'coins': coins, 'day': streak, 'is_new': True}
+
             return ok({
                 'user_id': str(user_id), 'name': p[0], 'age': p[1], 'gender': p[2], 'city': p[3],
                 'bio': p[4], 'photos': fixed_photos, 'tags': p[6] or [],
@@ -283,6 +319,7 @@ def handler(event: dict, context) -> dict:
                 'search_radius': p[10], 'search_gender': p[11],
                 'search_age_min': p[12], 'search_age_max': p[13],
                 'verified': p[14], 'is_premium': bool(p[15]), 'is_admin': bool(p[16]),
+                'daily_reward': daily_reward,
             })
 
         # ── Выход ─────────────────────────────────────────────────────────

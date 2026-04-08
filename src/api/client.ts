@@ -76,7 +76,7 @@ export const api = {
       req<{ token: string; user_id: string; name: string }>('auth', 'register', 'POST', { email, password, name, age, gender }),
     login: (email: string, password: string) =>
       req<{ token: string; user_id: string; name: string; is_admin: boolean }>('auth', 'login', 'POST', { email, password }),
-    me: () => req<UserProfile>('auth', 'me', 'GET'),
+    me: () => req<UserProfile & { daily_reward?: { coins: number; day: number; is_new: boolean } | null }>('auth', 'me', 'GET'),
     logout: () => req<{ ok: boolean }>('auth', 'logout', 'POST'),
     forgotPassword: (email: string) =>
       req<{ ok: boolean; message: string; dev_token?: string }>('auth', 'forgot_password', 'POST', { email }),
@@ -107,6 +107,7 @@ export const api = {
     incognito: (enabled: boolean) => req<{ ok: boolean; incognito: boolean }>('likes', 'incognito', 'POST', { enabled }),
     incognitoStatus: () => req<{ incognito: boolean; is_premium: boolean }>('likes', 'incognito_status', 'GET'),
     report: (to_user_id: string, reason: string) => req<{ ok: boolean }>('likes', 'report', 'POST', { to_user_id, reason }),
+    botRun: () => req<{ ok: boolean; stats: Record<string, number> }>('likes', 'bot_run', 'POST', {}, undefined, { 'X-Bot-Key': getAdminKey() }),
   },
   matches: {
     list: () => req<{ matches: Match[] }>('matches', 'list', 'GET'),

@@ -194,7 +194,7 @@ function GiftModal({ toUserId, toName, matchId, onClose }: { toUserId: string; t
   );
 }
 
-export default function MatchesPage({ userId }: { userId: string }) {
+export default function MatchesPage({ userId, openMatchId, onMatchOpened }: { userId: string; openMatchId?: string; onMatchOpened?: () => void }) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Match | null>(null);
@@ -216,6 +216,17 @@ export default function MatchesPage({ userId }: { userId: string }) {
   const lastMsgCount = useRef(0);
 
   useEffect(() => { loadMatches(); }, []);
+
+  // Автоматически открываем чат после матча
+  useEffect(() => {
+    if (openMatchId && matches.length > 0) {
+      const match = matches.find(m => m.match_id === openMatchId);
+      if (match) {
+        setSelected(match);
+        onMatchOpened?.();
+      }
+    }
+  }, [openMatchId, matches]);
 
   useEffect(() => {
     if (pollRef.current) clearInterval(pollRef.current);

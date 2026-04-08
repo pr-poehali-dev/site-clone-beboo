@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { api, UserProfile } from '@/api/client';
 
+export interface DailyReward { coins: number; day: number; is_new: boolean; }
+
 export interface AuthState {
   isLoading: boolean;
   isAuthed: boolean;
@@ -8,6 +10,8 @@ export interface AuthState {
   user: UserProfile | null;
   userId: string | null;
   token: string | null;
+  dailyReward: DailyReward | null;
+  clearDailyReward: () => void;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string, age: number, gender: string) => Promise<void>;
   logout: () => void;
@@ -19,6 +23,7 @@ export function useAuth(): AuthState {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [dailyReward, setDailyReward] = useState<DailyReward | null>(null);
 
   useEffect(() => {
     const savedToken = localStorage.getItem('spark_token');
@@ -27,7 +32,12 @@ export function useAuth(): AuthState {
       setToken(savedToken);
       setUserId(savedUserId);
       api.auth.me()
-        .then(u => setUser(u))
+        .then(u => {
+          setUser(u);
+          if (u.daily_reward?.is_new) {
+            setDailyReward(u.daily_reward);
+          }
+        })
         .catch(() => {
           localStorage.removeItem('spark_token');
           localStorage.removeItem('spark_user_id');
@@ -81,6 +91,8 @@ export function useAuth(): AuthState {
     user,
     userId,
     token,
+    dailyReward,
+    clearDailyReward: () => setDailyReward(null),
     login,
     register,
     logout,

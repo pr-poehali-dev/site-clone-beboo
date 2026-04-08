@@ -279,6 +279,87 @@ def handler(event: dict, context) -> dict:
             conn.commit()
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}
 
+        # ── Действия ботов (вызывается без токена, по секретному ключу) ────
+        if action == 'bot_run' and method == 'POST':
+            import random
+            bot_key = (event.get('headers') or {}).get('x-bot-key', '')
+            expected_key = os.environ.get('ADMIN_KEY', 'sparkladmin2024')
+            if bot_key != expected_key:
+                return {'statusCode': 403, 'headers': CORS, 'body': json.dumps({'error': 'Forbidden'})}
+
+            cur.execute("SELECT value FROM spark_settings WHERE key = 'bot_enabled'")
+            row = cur.fetchone()
+            if not row or row[0] != 'true':
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'skipped': 'bots disabled'})}
+
+            # Получаем ID ботов
+            cur.execute("SELECT id FROM spark_users WHERE is_bot = TRUE LIMIT 10")
+            bot_ids = [r[0] for r in cur.fetchall()]
+            if not bot_ids:
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'skipped': 'no bots'})}
+
+            # Получаем реальных пользователей (не ботов)
+            cur.execute("""
+                SELECT u.id FROM spark_users u
+                JOIN spark_profiles p ON p.user_id = u.id
+                WHERE u.is_bot = FALSE
+                AND array_length(p.photos, 1) > 0
+                AND u.created_at > NOW() - INTERVAL '30 days'
+                ORDER BY RANDOM() LIMIT 20
+            """)
+            real_users = [r[0] for r in cur.fetchall()]
+            if not real_users:
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'skipped': 'no real users'})}
+
+            stats = {'likes': 0, 'views': 0, 'messages': 0, 'matches': 0}
+
+            for bot_id in random.sample(bot_ids, min(3, len(bot_ids))):
+                bot_targets = random.sample(real_users, min(3, len(real_users)))
+                for target_id in bot_targets:
+                    # Записываем просмотр
+                    cur.execute("INSERT INTO spark_profile_views (viewer_id, target_id) VALUES (%s, %s)", (bot_id, target_id))
+                    stats['views'] += 1
+
+                    # Ставим лайк (если ещё не лайкали)
+                    cur.execute("SELECT 1 FROM spark_likes WHERE from_user_id = %s AND to_user_id = %s", (bot_id, target_id))
+                    if not cur.fetchone():
+                        cur.execute("INSERT INTO spark_likes (from_user_id, to_user_id, is_super) VALUES (%s, %s, FALSE) ON CONFLICT DO NOTHING", (bot_id, target_id))
+                        stats['likes'] += 1
+
+                        # Проверяем взаимный лайк → создаём мэтч
+                        cur.execute("SELECT 1 FROM spark_likes WHERE from_user_id = %s AND to_user_id = %s", (target_id, bot_id))
+                        if cur.fetchone():
+                            u1, u2 = sorted([str(bot_id), str(target_id)])
+                            cur.execute("""
+                                INSERT INTO spark_matches (user1_id, user2_id)
+                                VALUES (%s::uuid, %s::uuid)
+                                ON CONFLICT DO NOTHING
+                                RETURNING id
+                            """, (u1, u2))
+                            match_row = cur.fetchone()
+                            if match_row:
+                                stats['matches'] += 1
+                                # Бот пишет приветственное сообщение
+                                greetings = [
+                                    'Привет! Рад нашему знакомству 😊',
+                                    'Привет! Как дела?',
+                                    'Привет! Интересный профиль у тебя 👋',
+                                    'Привет! Мы мэтч! Как ты? 😊',
+                                    'Привет! Рада познакомиться ✨',
+                                ]
+                                cur.execute("""
+                                    INSERT INTO spark_messages (match_id, sender_id, text, msg_type)
+                                    VALUES (%s, %s, %s, 'text')
+                                """, (match_row[0], bot_id, random.choice(greetings)))
+                                stats['messages'] += 1
+
+            # Обновляем online_at ботов
+            for bot_id in bot_ids:
+                cur.execute("UPDATE spark_profiles SET online_at = NOW() WHERE user_id = %s", (bot_id,))
+
+            conn.commit()
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'stats': stats})}
+
         return {'statusCode': 404, 'headers': CORS, 'body': json.dumps({'error': 'Unknown action'})}
 
     finally:

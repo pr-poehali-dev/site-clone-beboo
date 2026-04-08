@@ -30,6 +30,7 @@ export default function Index() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [openMatchId, setOpenMatchId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (!auth.isAuthed) return;
@@ -95,7 +96,7 @@ export default function Index() {
       <main className="flex-1 relative overflow-hidden">
         <div className={`absolute inset-0 ${activeTab !== 'discover' ? 'hidden' : ''}`}>
           <div className="absolute inset-0 px-4 pb-2">
-            {auth.userId && <DiscoverPage onGoToMessages={() => setActiveTab('messages')} userId={auth.userId} />}
+            {auth.userId && <DiscoverPage onGoToMessages={(matchId) => { setOpenMatchId(matchId); setActiveTab('messages'); }} userId={auth.userId} />}
           </div>
         </div>
         <div className={`absolute inset-0 ${activeTab !== 'likes' ? 'hidden' : ''}`}>
@@ -114,7 +115,7 @@ export default function Index() {
           <WalletPage />
         </div>
         <div className={`absolute inset-0 ${activeTab !== 'messages' ? 'hidden' : ''}`}>
-          {auth.userId && <MatchesPage userId={auth.userId} />}
+          {auth.userId && <MatchesPage userId={auth.userId} openMatchId={openMatchId} onMatchOpened={() => setOpenMatchId(undefined)} />}
         </div>
         <div className={`absolute inset-0 ${activeTab !== 'profile' ? 'hidden' : ''}`}>
           {auth.user && (
@@ -151,6 +152,40 @@ export default function Index() {
 
       {/* Admin Panel Overlay */}
       {showAdmin && <AdminPage onClose={() => setShowAdmin(false)} />}
+
+      {/* Ежедневная награда */}
+      {auth.dailyReward && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={auth.clearDailyReward}>
+          <div className="bg-white rounded-3xl p-8 w-full max-w-xs text-center animate-bounce-in"
+            onClick={e => e.stopPropagation()}>
+            <div className="text-6xl mb-4">🎁</div>
+            <h2 className="text-2xl font-black text-foreground mb-2">Ежедневный бонус!</h2>
+            <p className="text-muted-foreground text-sm mb-4">День {auth.dailyReward.day} из 7</p>
+            <div className="rounded-2xl py-4 mb-5" style={{ background: 'linear-gradient(135deg, hsl(340 82% 58%), hsl(262 80% 64%))' }}>
+              <p className="text-4xl font-black text-white">+{auth.dailyReward.coins}</p>
+              <p className="text-white/80 text-sm">монет на кошелёк</p>
+            </div>
+            {/* Прогресс 7 дней */}
+            <div className="flex justify-center gap-1.5 mb-5">
+              {[1,2,3,4,5,6,7].map(d => (
+                <div key={d}
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black transition-all ${
+                    d < auth.dailyReward!.day ? 'gradient-brand text-white opacity-60' :
+                    d === auth.dailyReward!.day ? 'gradient-brand text-white scale-110 shadow-lg' :
+                    'bg-secondary text-muted-foreground'
+                  }`}>
+                  {d === 7 ? '⭐' : d}
+                </div>
+              ))}
+            </div>
+            <button onClick={auth.clearDailyReward}
+              className="w-full py-3.5 rounded-2xl btn-primary text-white font-bold">
+              Забрать!
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

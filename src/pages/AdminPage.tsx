@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { api, AdminStats } from '@/api/client';
 import Icon from '@/components/ui/icon';
-import { DashboardTab, UsersTab, MonetizationTab, ReportsTab, SettingsTab, PaymentTab } from '@/components/admin/AdminTabs';
+import { DashboardTab, UsersTab, MonetizationTab, ReportsTab, SettingsTab, PaymentTab, BotsTab } from '@/components/admin/AdminTabs';
 
-type AdminTab = 'dashboard' | 'users' | 'monetization' | 'reports' | 'settings' | 'payment';
+type AdminTab = 'dashboard' | 'users' | 'monetization' | 'reports' | 'settings' | 'payment' | 'bots';
 
 export default function AdminPage({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<AdminTab>('dashboard');
@@ -20,6 +20,7 @@ export default function AdminPage({ onClose }: { onClose: () => void }) {
     { id: 'users', icon: 'Users', label: 'Пользователи' },
     { id: 'monetization', icon: 'CreditCard', label: 'Монетизация' },
     { id: 'reports', icon: 'Flag', label: 'Репорты' },
+    { id: 'bots', icon: 'Bot', label: 'Боты & Награды' },
     { id: 'settings', icon: 'Settings', label: 'Настройки' },
     { id: 'payment', icon: 'Wallet', label: 'Оплата' },
   ];
@@ -61,6 +62,7 @@ export default function AdminPage({ onClose }: { onClose: () => void }) {
         {tab === 'users' && <UsersTab />}
         {tab === 'monetization' && <MonetizationTab />}
         {tab === 'reports' && <ReportsTab />}
+        {tab === 'bots' && <BotsTab />}
         {tab === 'settings' && <SettingsTab />}
         {tab === 'payment' && <PaymentTab />}
       </div>
