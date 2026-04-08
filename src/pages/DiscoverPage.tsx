@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { api, Profile } from '@/api/client';
-import SwipeCard from '@/components/SwipeCard';
+import SwipeCard, { SwipeCardRef } from '@/components/SwipeCard';
 import MatchModal from '@/components/MatchModal';
 import Icon from '@/components/ui/icon';
 
@@ -13,8 +13,8 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
   const [deck, setDeck] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [matchData, setMatchData] = useState<{ name: string; photo: string } | null>(null);
-  const [actionFlash, setActionFlash] = useState<'like' | 'pass' | 'super' | null>(null);
-  const [swiping, setSwiping] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const topCardRef = useRef<SwipeCardRef>(null);
 
   useEffect(() => {
     void userId;
@@ -33,46 +33,58 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
     }
   };
 
-  const flash = (action: 'like' | 'pass' | 'super') => {
-    setActionFlash(action);
-    setTimeout(() => setActionFlash(null), 600);
-  };
-
-  const handleLike = async () => {
-    if (swiping || deck.length === 0) return;
+  // Вызывается SwipeCard после завершения анимации
+  const handleLike = useCallback(async () => {
+    if (deck.length === 0) return;
     const top = deck[0];
-    setSwiping(true);
-    flash('like');
+    setDeck(prev => prev.slice(1));
+    setBusy(false);
     try {
       const res = await api.likes.like(top.user_id, false);
       if (res.is_match && res.match_id) {
-        setTimeout(() => setMatchData(res.profile), 450);
+        setMatchData(res.profile);
       }
     } catch { /* ignore */ }
-    setTimeout(() => { setDeck(prev => prev.slice(1)); setSwiping(false); }, 420);
-  };
+  }, [deck]);
 
-  const handlePass = async () => {
-    if (swiping || deck.length === 0) return;
+  const handlePass = useCallback(async () => {
+    if (deck.length === 0) return;
     const top = deck[0];
-    setSwiping(true);
-    flash('pass');
-    try { await api.likes.pass(top.user_id); } catch { /* ignore */ }
-    setTimeout(() => { setDeck(prev => prev.slice(1)); setSwiping(false); }, 420);
-  };
+    setDeck(prev => prev.slice(1));
+    setBusy(false);
+    try {
+      await api.likes.pass(top.user_id);
+    } catch { /* ignore */ }
+  }, [deck]);
 
-  const handleSuperLike = async () => {
-    if (swiping || deck.length === 0) return;
+  const handleSuperLike = useCallback(async () => {
+    if (deck.length === 0) return;
     const top = deck[0];
-    setSwiping(true);
-    flash('super');
+    setDeck(prev => prev.slice(1));
+    setBusy(false);
     try {
       const res = await api.likes.like(top.user_id, true);
       if (res.is_match && res.match_id) {
-        setTimeout(() => setMatchData(res.profile), 450);
+        setMatchData(res.profile);
       }
     } catch { /* ignore */ }
-    setTimeout(() => { setDeck(prev => prev.slice(1)); setSwiping(false); }, 420);
+  }, [deck]);
+
+  // Кнопки внизу — триггерят анимацию карточки через ref
+  const pressLike = () => {
+    if (busy || deck.length === 0) return;
+    setBusy(true);
+    topCardRef.current?.swipeRight();
+  };
+  const pressPass = () => {
+    if (busy || deck.length === 0) return;
+    setBusy(true);
+    topCardRef.current?.swipeLeft();
+  };
+  const pressSuper = () => {
+    if (busy || deck.length === 0) return;
+    setBusy(true);
+    topCardRef.current?.swipeUp();
   };
 
   const visible = deck.slice(0, 3);
@@ -81,13 +93,14 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
     return (
       <div className="flex flex-col h-full items-center justify-center gap-4">
         <div className="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-        <p className="text-muted-foreground text-sm">Ищем анкеты рядом...</p>
+        <p className="text-muted-foreground text-sm font-semibold">Ищем анкеты рядом...</p>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col h-full">
+      {/* Стек карточек */}
       <div className="flex-1 relative" style={{ minHeight: 0 }}>
         {visible.length === 0 ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8">
@@ -99,13 +112,16 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
             </button>
           </div>
         ) : (
+          // Рендерим в обратном порядке чтобы верхняя была поверх
           [...visible].reverse().map((profile, revIdx) => {
             const stackIndex = visible.length - 1 - revIdx;
+            const isTop = stackIndex === 0;
             return (
               <SwipeCard
                 key={profile.user_id}
+                ref={isTop ? topCardRef : null}
                 profile={profile}
-                isTop={stackIndex === 0}
+                isTop={isTop}
                 stackIndex={stackIndex}
                 onLike={handleLike}
                 onPass={handlePass}
@@ -114,41 +130,44 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
             );
           })
         )}
-
-        {actionFlash && (
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
-            <div className="text-6xl animate-bounce-in">
-              {actionFlash === 'like' ? '💚' : actionFlash === 'pass' ? '❌' : '⭐'}
-            </div>
-          </div>
-        )}
       </div>
 
+      {/* Кнопки действий */}
       {visible.length > 0 && (
-        <div className="flex items-center justify-center gap-5 py-5 px-4 shrink-0">
+        <div className="flex items-center justify-center gap-4 py-5 px-4 shrink-0">
+          {/* Пропустить */}
           <button
-            onClick={handlePass}
-            disabled={swiping}
-            className="w-14 h-14 rounded-full bg-white border-2 border-rose-200 flex items-center justify-center shadow-lg hover:border-rose-400 hover:scale-110 transition-all active:scale-95 disabled:opacity-50"
+            onClick={pressPass}
+            disabled={busy}
+            className="w-14 h-14 rounded-full bg-white border-2 border-rose-200 flex items-center justify-center shadow-lg hover:border-rose-400 hover:scale-110 active:scale-95 transition-all disabled:opacity-40"
           >
-            <Icon name="X" size={24} className="text-rose-400" />
+            <Icon name="X" size={26} className="text-rose-400" />
           </button>
+
+          {/* Суперлайк */}
           <button
-            onClick={handleSuperLike}
-            disabled={swiping}
-            className="w-12 h-12 rounded-full bg-white border-2 border-blue-200 flex items-center justify-center shadow-md hover:border-blue-400 hover:scale-110 transition-all active:scale-95 disabled:opacity-50"
+            onClick={pressSuper}
+            disabled={busy}
+            className="w-12 h-12 rounded-full bg-white border-2 border-blue-200 flex items-center justify-center shadow-md hover:border-blue-400 hover:scale-110 active:scale-95 transition-all disabled:opacity-40"
           >
             <Icon name="Star" size={20} className="text-blue-400" />
           </button>
+
+          {/* Лайк */}
           <button
-            onClick={handleLike}
-            disabled={swiping}
-            className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all active:scale-95 disabled:opacity-50"
+            onClick={pressLike}
+            disabled={busy}
+            className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all disabled:opacity-40"
             style={{ background: 'linear-gradient(135deg, hsl(340 82% 58%), hsl(262 80% 64%))' }}
           >
-            <Icon name="Heart" size={24} className="text-white" />
+            <Icon name="Heart" size={26} className="text-white" />
           </button>
-          <button className="w-12 h-12 rounded-full bg-white border-2 border-amber-200 flex items-center justify-center shadow-md hover:border-amber-400 hover:scale-110 transition-all active:scale-95">
+
+          {/* Буст (заглушка) */}
+          <button
+            className="w-12 h-12 rounded-full bg-white border-2 border-amber-200 flex items-center justify-center shadow-md hover:border-amber-400 hover:scale-110 active:scale-95 transition-all"
+            onClick={() => {}}
+          >
             <Icon name="Zap" size={20} className="text-amber-400" />
           </button>
         </div>

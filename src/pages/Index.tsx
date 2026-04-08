@@ -85,7 +85,7 @@ export default function Index() {
           </div>
         </div>
         <div className={`absolute inset-0 ${activeTab !== 'likes' ? 'hidden' : ''}`}>
-          <LikesPage />
+          <LikesPage onGoToMessages={() => setActiveTab('messages')} />
         </div>
         <div className={`absolute inset-0 ${activeTab !== 'messages' ? 'hidden' : ''}`}>
           {auth.userId && <MatchesPage userId={auth.userId} />}
