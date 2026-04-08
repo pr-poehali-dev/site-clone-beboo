@@ -69,12 +69,24 @@ export const api = {
     myViewers: () => req<ViewersResult>('likes', 'my_viewers', 'GET'),
     incognito: (enabled: boolean) => req<{ ok: boolean; incognito: boolean }>('likes', 'incognito', 'POST', { enabled }),
     incognitoStatus: () => req<{ incognito: boolean; is_premium: boolean }>('likes', 'incognito_status', 'GET'),
+    report: (to_user_id: string, reason: string) => req<{ ok: boolean }>('likes', 'report', 'POST', { to_user_id, reason }),
   },
   matches: {
     list: () => req<{ matches: Match[] }>('matches', 'list', 'GET'),
     messages: (match_id: string) => req<{ messages: Message[] }>('matches', 'messages', 'GET', undefined, { match_id }),
     send: (match_id: string, text: string) => req<Message>('matches', 'send', 'POST', { match_id, text }),
     sendImage: (match_id: string, data: string) => req<Message>('matches', 'send_image', 'POST', { match_id, data }),
+    typing: (match_id: string) => req<{ ok: boolean }>('matches', 'typing', 'POST', { match_id }),
+    ping: () => req<{ ok: boolean }>('matches', 'ping', 'POST'),
+  },
+  wallet: {
+    balance: () => req<{ balance: number }>('upload', 'wallet_balance', 'GET'),
+    history: () => req<{ transactions: WalletTx[] }>('upload', 'wallet_history', 'GET'),
+    topup: (coins: number) => req<{ ok: boolean; balance: number }>('upload', 'wallet_topup', 'POST', { coins }),
+    giftCatalog: () => req<{ gifts: GiftItem[] }>('upload', 'gift_catalog', 'GET'),
+    sendGift: (to_user_id: string, gift_id: string, message: string, match_id?: string) =>
+      req<{ ok: boolean; balance: number; gift: string }>('upload', 'gift_send', 'POST', { to_user_id, gift_id, message, match_id }),
+    giftsReceived: () => req<{ gifts: ReceivedGift[] }>('upload', 'gifts_received', 'GET'),
   },
   payment: {
     create: (plan: string) => req<PaymentResult>('upload', 'pay_create', 'POST', { plan }),
@@ -180,4 +192,14 @@ export interface SelfieRequest {
 }
 export interface PaymentResult {
   payment_id: string; pay_url: string; amount: number; plan: string; provider: string;
+}
+export interface WalletTx {
+  amount: number; type: string; description: string; created_at: string;
+}
+export interface GiftItem {
+  id: string; name: string; emoji: string; price: number; description: string;
+}
+export interface ReceivedGift {
+  id: string; from_user_id: string; name: string; emoji: string; price: number;
+  message: string; created_at: string; sender_name: string; sender_photo: string;
 }

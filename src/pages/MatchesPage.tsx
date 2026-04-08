@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { api, Match, Message, Profile } from '@/api/client';
+import { api, Match, Message, Profile, GiftItem } from '@/api/client';
 import Icon from '@/components/ui/icon';
 
 function timeAgo(s: string) {
@@ -95,6 +95,105 @@ function ProfileDrawer({ match, onClose }: { match: Match; onClose: () => void }
   );
 }
 
+function ReportModal({ userId, name, onClose }: { userId: string; name: string; onClose: () => void }) {
+  const reasons = ['Фейковый профиль', 'Оскорбительное поведение', 'Спам', 'Мошенничество', 'Несовершеннолетний', 'Другое'];
+  const [selected, setSelected] = useState('');
+  const [sending, setSending] = useState(false);
+  const send = async () => {
+    if (!selected) return;
+    setSending(true);
+    try { await api.likes.report(userId, selected); alert('Жалоба отправлена. Мы рассмотрим её в течение 24 часов.'); onClose(); }
+    catch (e: unknown) { alert(e instanceof Error ? e.message : 'Ошибка'); }
+    finally { setSending(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl p-5 w-full max-w-sm animate-slide-up" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-black text-foreground">Пожаловаться на {name}</h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-secondary flex items-center justify-center"><Icon name="X" size={16} /></button>
+        </div>
+        <div className="space-y-2 mb-4">
+          {reasons.map(r => (
+            <button key={r} onClick={() => setSelected(r)}
+              className={`w-full text-left px-4 py-2.5 rounded-2xl text-sm font-semibold border-2 transition-all ${selected === r ? 'border-primary bg-primary/5 text-primary' : 'border-border text-foreground hover:border-primary/30'}`}>
+              {r}
+            </button>
+          ))}
+        </div>
+        <button onClick={send} disabled={!selected || sending}
+          className="w-full py-3 rounded-2xl bg-rose-500 text-white font-bold text-sm disabled:opacity-50">
+          {sending ? 'Отправляем...' : 'Отправить жалобу'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function GiftModal({ toUserId, toName, matchId, onClose }: { toUserId: string; toName: string; matchId: string; onClose: () => void }) {
+  const [gifts, setGifts] = useState<GiftItem[]>([]);
+  const [balance, setBalance] = useState(0);
+  const [selected, setSelected] = useState<GiftItem | null>(null);
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([api.wallet.giftCatalog(), api.wallet.balance()])
+      .then(([c, w]) => { setGifts(c.gifts); setBalance(w.balance); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const send = async () => {
+    if (!selected) return;
+    setSending(true);
+    try {
+      const r = await api.wallet.sendGift(toUserId, selected.id, message, matchId);
+      setBalance(r.balance);
+      alert(`Подарок ${selected.emoji} ${selected.name} отправлен!`);
+      onClose();
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Ошибка');
+    } finally { setSending(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl p-5 w-full max-w-sm max-h-[80vh] flex flex-col animate-slide-up" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3 shrink-0">
+          <div>
+            <h3 className="font-black text-foreground">Подарок для {toName}</h3>
+            <p className="text-xs text-muted-foreground">Баланс: <span className="font-bold text-primary">{balance} монет</span></p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-secondary flex items-center justify-center"><Icon name="X" size={16} /></button>
+        </div>
+        {loading ? <div className="flex justify-center py-8"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div> : (
+          <>
+            <div className="grid grid-cols-3 gap-2 mb-4 overflow-y-auto max-h-48">
+              {gifts.map(g => (
+                <button key={g.id} onClick={() => setSelected(g)}
+                  className={`p-2 rounded-2xl border-2 flex flex-col items-center gap-1 transition-all ${selected?.id === g.id ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}>
+                  <span className="text-2xl">{g.emoji}</span>
+                  <p className="text-[10px] font-bold text-foreground">{g.name}</p>
+                  <p className="text-[10px] text-primary font-black">{g.price}₽</p>
+                </button>
+              ))}
+            </div>
+            <input value={message} onChange={e => setMessage(e.target.value)} placeholder="Сообщение (необязательно)"
+              className="w-full bg-secondary border border-border rounded-2xl px-4 py-2.5 text-sm outline-none mb-3" />
+            <button onClick={send} disabled={!selected || sending || (selected ? balance < selected.price : false)}
+              className="w-full py-3 rounded-2xl font-bold text-sm text-white disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg, hsl(340 82% 58%), hsl(262 80% 64%))' }}>
+              {sending ? 'Отправляем...' : selected ? `Подарить ${selected.emoji} за ${selected.price} монет` : 'Выберите подарок'}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function MatchesPage({ userId }: { userId: string }) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,6 +205,11 @@ export default function MatchesPage({ userId }: { userId: string }) {
   const [sendError, setSendError] = useState('');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [favoritedUsers, setFavoritedUsers] = useState<Set<string>>(new Set());
+  const [isTyping, setIsTyping] = useState(false);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showGifts, setShowGifts] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -157,6 +261,22 @@ export default function MatchesPage({ userId }: { userId: string }) {
       });
     } catch { /* ignore */ }
   }, []);
+
+  const toggleFavorite = async (userId: string) => {
+    const isFav = favoritedUsers.has(userId);
+    try {
+      if (isFav) { await api.likes.unfavorite(userId); setFavoritedUsers(s => { const n = new Set(s); n.delete(userId); return n; }); }
+      else { await api.likes.favorite(userId); setFavoritedUsers(s => new Set(s).add(userId)); }
+    } catch { /* ignore */ }
+  };
+
+  const handleTyping = (val: string) => {
+    setText(val);
+    if (!selected) return;
+    if (typingTimer.current) clearTimeout(typingTimer.current);
+    api.matches.typing(selected.match_id).catch(() => {});
+    typingTimer.current = setTimeout(() => { setIsTyping(false); }, 3000);
+  };
 
   const send = async () => {
     if (!text.trim() || !selected || sending) return;
@@ -216,10 +336,28 @@ export default function MatchesPage({ userId }: { userId: string }) {
               <p className="text-xs text-emerald-500">{selected.online ? '● В сети' : 'Недавно была'}</p>
             </div>
           </button>
-          <button onClick={() => setShowProfile(true)}
-            className="w-9 h-9 rounded-full hover:bg-secondary flex items-center justify-center transition-colors shrink-0">
-            <Icon name="User" size={18} className="text-muted-foreground" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Избранное */}
+            <button onClick={() => toggleFavorite(selected.other_user_id)}
+              className="w-9 h-9 rounded-full hover:bg-secondary flex items-center justify-center transition-colors">
+              <Icon name="Star" size={17} className={favoritedUsers.has(selected.other_user_id) ? 'text-amber-400' : 'text-muted-foreground'} />
+            </button>
+            {/* Подарок */}
+            <button onClick={() => setShowGifts(true)}
+              className="w-9 h-9 rounded-full hover:bg-secondary flex items-center justify-center transition-colors">
+              <Icon name="Gift" size={17} className="text-muted-foreground" />
+            </button>
+            {/* Профиль */}
+            <button onClick={() => setShowProfile(true)}
+              className="w-9 h-9 rounded-full hover:bg-secondary flex items-center justify-center transition-colors">
+              <Icon name="User" size={17} className="text-muted-foreground" />
+            </button>
+            {/* Жалоба */}
+            <button onClick={() => setShowReport(true)}
+              className="w-9 h-9 rounded-full hover:bg-secondary flex items-center justify-center transition-colors">
+              <Icon name="Flag" size={15} className="text-rose-400" />
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
@@ -324,7 +462,7 @@ export default function MatchesPage({ userId }: { userId: string }) {
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
             <input
               type="text" value={text}
-              onChange={e => setText(e.target.value)}
+              onChange={e => handleTyping(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
               placeholder={`Написать ${selected.name}...`}
               className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground outline-none min-w-0"
@@ -342,6 +480,25 @@ export default function MatchesPage({ userId }: { userId: string }) {
 
         {/* Профиль собеседника (drawer) */}
         {showProfile && <ProfileDrawer match={selected} onClose={() => setShowProfile(false)} />}
+
+        {/* Жалоба */}
+        {showReport && (
+          <ReportModal
+            name={selected.name}
+            userId={selected.other_user_id}
+            onClose={() => setShowReport(false)}
+          />
+        )}
+
+        {/* Подарки */}
+        {showGifts && (
+          <GiftModal
+            toUserId={selected.other_user_id}
+            toName={selected.name}
+            matchId={selected.match_id}
+            onClose={() => setShowGifts(false)}
+          />
+        )}
       </div>
     );
   }

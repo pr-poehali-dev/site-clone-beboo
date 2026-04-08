@@ -3,6 +3,30 @@ import { api, IncomingLike } from '@/api/client';
 import MatchModal from '@/components/MatchModal';
 import Icon from '@/components/ui/icon';
 
+function ReportMenu({ userId, name }: { userId: string; name: string }) {
+  const [open, setOpen] = useState(false);
+  const send = async (reason: string) => {
+    setOpen(false);
+    try { await api.likes.report(userId, reason); alert('Жалоба отправлена!'); }
+    catch (e: unknown) { alert(e instanceof Error ? e.message : 'Ошибка'); }
+  };
+  if (!open) return (
+    <button onClick={() => setOpen(true)} className="w-8 h-8 rounded-full hover:bg-secondary flex items-center justify-center" title={`Пожаловаться на ${name}`}>
+      <Icon name="Flag" size={14} className="text-rose-400" />
+    </button>
+  );
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
+      <div className="bg-white rounded-2xl p-4 w-full max-w-xs" onClick={e => e.stopPropagation()}>
+        <p className="font-bold text-foreground mb-3 text-sm">Причина жалобы</p>
+        {['Фейк', 'Спам', 'Оскорбления', 'Мошенничество', 'Другое'].map(r => (
+          <button key={r} onClick={() => send(r)} className="w-full text-left px-3 py-2 text-sm hover:bg-secondary rounded-xl text-foreground">{r}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function LikesPage({ onGoToMessages }: { onGoToMessages?: () => void }) {
   const [likes, setLikes] = useState<IncomingLike[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,7 +137,8 @@ export default function LikesPage({ onGoToMessages }: { onGoToMessages?: () => v
                     <Icon name="Lock" size={13} className="text-white" /> Premium
                   </button>
                 ) : (
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <ReportMenu userId={like.user_id} name={like.name} />
                     <button
                       onClick={() => handlePass(like)}
                       disabled={!!acting}

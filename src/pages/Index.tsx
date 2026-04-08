@@ -8,10 +8,11 @@ import ProfilePage from './ProfilePage';
 import AdminPage from './AdminPage';
 import FavoritesPage from './FavoritesPage';
 import ViewersPage from './ViewersPage';
+import WalletPage from './WalletPage';
 import Icon from '@/components/ui/icon';
 import { api } from '@/api/client';
 
-type Tab = 'discover' | 'likes' | 'favorites' | 'viewers' | 'messages' | 'profile';
+type Tab = 'discover' | 'likes' | 'favorites' | 'viewers' | 'messages' | 'wallet' | 'profile';
 
 const tabs: { id: Tab; icon: string; label: string }[] = [
   { id: 'discover', icon: 'Flame', label: 'Смотреть' },
@@ -19,6 +20,7 @@ const tabs: { id: Tab; icon: string; label: string }[] = [
   { id: 'favorites', icon: 'Bookmark', label: 'Избранное' },
   { id: 'viewers', icon: 'Eye', label: 'Смотрели' },
   { id: 'messages', icon: 'MessageCircle', label: 'Чаты' },
+  { id: 'wallet', icon: 'Wallet', label: 'Кошелёк' },
   { id: 'profile', icon: 'User', label: 'Профиль' },
 ];
 
@@ -108,6 +110,9 @@ export default function Index() {
             onUpgrade={() => setShowPremiumModal(true)}
           />
         </div>
+        <div className={`absolute inset-0 ${activeTab !== 'wallet' ? 'hidden' : ''}`}>
+          <WalletPage />
+        </div>
         <div className={`absolute inset-0 ${activeTab !== 'messages' ? 'hidden' : ''}`}>
           {auth.userId && <MatchesPage userId={auth.userId} />}
         </div>
@@ -126,10 +131,10 @@ export default function Index() {
             const badge = tab.id === 'messages' && unreadCount > 0 ? unreadCount : 0;
             return (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className="flex flex-col items-center gap-0.5 py-1.5 px-4 rounded-2xl transition-all">
+                className="flex flex-col items-center gap-0.5 py-1.5 px-2 rounded-2xl transition-all">
                 <div className="relative">
-                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isActive ? 'gradient-brand' : ''}`}>
-                    <Icon name={tab.icon} fallback="Circle" size={20} className={isActive ? 'text-white' : 'text-muted-foreground'} />
+                  <div className={`w-9 h-9 rounded-2xl flex items-center justify-center ${isActive ? 'gradient-brand' : ''}`}>
+                    <Icon name={tab.icon} fallback="Circle" size={17} className={isActive ? 'text-white' : 'text-muted-foreground'} />
                   </div>
                   {badge > 0 && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-black gradient-brand">
@@ -137,7 +142,7 @@ export default function Index() {
                     </span>
                   )}
                 </div>
-                <span className={`text-[10px] font-bold ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>{tab.label}</span>
+                <span className={`text-[9px] font-bold ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>{tab.label}</span>
               </button>
             );
           })}

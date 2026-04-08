@@ -214,11 +214,27 @@ const SwipeCard = forwardRef<SwipeCardRef, SwipeCardProps>(
             {showInfo && (
               <div className="mt-3 animate-slide-up">
                 <p className="text-white/90 text-sm leading-relaxed mb-3">{profile.bio}</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 mb-3">
                   {(profile.tags || []).map(tag => (
                     <span key={tag} className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-white text-xs font-semibold">{tag}</span>
                   ))}
                 </div>
+                <button
+                  className="flex items-center gap-1.5 text-white/60 text-xs hover:text-rose-300 transition-colors"
+                  onPointerDown={e => e.stopPropagation()}
+                  onClick={e => {
+                    e.stopPropagation();
+                    const reason = prompt(`Причина жалобы на ${profile.name}:\n\n1. Фейк\n2. Спам\n3. Оскорбления\n4. Мошенничество\n\nВведите текст:`);
+                    if (reason) {
+                      import('@/api/client').then(({ api: a }) => {
+                        a.likes.report(profile.user_id, reason).then(() => alert('Жалоба отправлена!')).catch(() => {});
+                      });
+                    }
+                  }}
+                >
+                  <Icon name="Flag" size={12} />
+                  Пожаловаться
+                </button>
               </div>
             )}
           </div>

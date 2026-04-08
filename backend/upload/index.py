@@ -525,6 +525,89 @@ def handler(event: dict, context) -> dict:
                     conn.commit()
             return {'statusCode': 200, 'headers': {'Content-Type': 'text/plain', **CORS}, 'body': f'OK{inv_id}'}
 
+        # ════════════════════════════════════════════════════════
+        # WALLET (кошелёк — требует auth-token)
+        # ════════════════════════════════════════════════════════
+        if action in ('wallet_balance', 'wallet_topup', 'wallet_history', 'gift_catalog', 'gift_send', 'gifts_received'):
+            w_user = get_user_id(cur, token)
+            if not w_user:
+                return {'statusCode': 401, 'headers': CORS, 'body': json.dumps({'error': 'Не авторизован'})}
+
+            if action == 'wallet_balance':
+                cur.execute("SELECT balance FROM spark_wallets WHERE user_id = %s", (w_user,))
+                row = cur.fetchone()
+                balance = row[0] if row else 0
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'balance': balance})}
+
+            if action == 'wallet_history':
+                cur.execute("SELECT amount, type, description, created_at FROM spark_wallet_txs WHERE user_id = %s ORDER BY created_at DESC LIMIT 50", (w_user,))
+                rows = cur.fetchall()
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'transactions': [
+                    {'amount': r[0], 'type': r[1], 'description': r[2] or '', 'created_at': r[3].isoformat()} for r in rows
+                ]})}
+
+            if action == 'wallet_topup' and method == 'POST':
+                w_body = json.loads(event.get('body') or '{}')
+                coins = int(w_body.get('coins', 0))
+                if coins <= 0:
+                    return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Укажите количество монет'})}
+                cur.execute("INSERT INTO spark_wallets (user_id, balance) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET balance = spark_wallets.balance + %s, updated_at = NOW()", (w_user, coins, coins))
+                cur.execute("INSERT INTO spark_wallet_txs (user_id, amount, type, description) VALUES (%s, %s, 'topup', %s)", (w_user, coins, f'Пополнение на {coins} монет'))
+                cur.execute("SELECT balance FROM spark_wallets WHERE user_id = %s", (w_user,))
+                balance = cur.fetchone()[0]
+                conn.commit()
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'balance': balance})}
+
+            if action == 'gift_catalog':
+                cur.execute("SELECT id, name, emoji, price, description FROM spark_gifts_catalog WHERE active = TRUE ORDER BY price ASC")
+                rows = cur.fetchall()
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'gifts': [
+                    {'id': str(r[0]), 'name': r[1], 'emoji': r[2], 'price': r[3], 'description': r[4] or ''} for r in rows
+                ]})}
+
+            if action == 'gift_send' and method == 'POST':
+                w_body = json.loads(event.get('body') or '{}')
+                to_id = w_body.get('to_user_id')
+                gift_id = w_body.get('gift_id')
+                message = w_body.get('message', '')
+                match_id = w_body.get('match_id')
+                if not to_id or not gift_id:
+                    return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Нет данных'})}
+                cur.execute("SELECT price, name, emoji FROM spark_gifts_catalog WHERE id = %s AND active = TRUE", (gift_id,))
+                gift_row = cur.fetchone()
+                if not gift_row:
+                    return {'statusCode': 404, 'headers': CORS, 'body': json.dumps({'error': 'Подарок не найден'})}
+                price, gift_name, emoji = gift_row
+                cur.execute("SELECT balance FROM spark_wallets WHERE user_id = %s", (w_user,))
+                bal_row = cur.fetchone()
+                balance = bal_row[0] if bal_row else 0
+                if balance < price:
+                    return {'statusCode': 402, 'headers': CORS, 'body': json.dumps({'error': 'Недостаточно монет', 'balance': balance, 'required': price})}
+                cur.execute("UPDATE spark_wallets SET balance = balance - %s, updated_at = NOW() WHERE user_id = %s", (price, w_user))
+                cur.execute("INSERT INTO spark_wallets (user_id, balance) VALUES (%s, 0) ON CONFLICT (user_id) DO UPDATE SET balance = spark_wallets.balance + %s, updated_at = NOW()", (to_id, price // 2))
+                cur.execute("INSERT INTO spark_gifts (from_user_id, to_user_id, gift_id, message, match_id) VALUES (%s, %s, %s, %s, %s)", (w_user, to_id, gift_id, message, match_id))
+                cur.execute("INSERT INTO spark_wallet_txs (user_id, amount, type, description) VALUES (%s, %s, 'gift_sent', %s)", (w_user, -price, f'Подарок {emoji} {gift_name}'))
+                cur.execute("INSERT INTO spark_wallet_txs (user_id, amount, type, description) VALUES (%s, %s, 'gift_received', %s)", (to_id, price // 2, f'Получен подарок {emoji} {gift_name}'))
+                cur.execute("SELECT balance FROM spark_wallets WHERE user_id = %s", (w_user,))
+                new_balance = cur.fetchone()[0]
+                conn.commit()
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'balance': new_balance, 'gift': gift_name})}
+
+            if action == 'gifts_received':
+                cur.execute("""
+                    SELECT g.id, g.from_user_id, gc.name, gc.emoji, gc.price, g.message, g.created_at, p.name AS sender_name, p.photos
+                    FROM spark_gifts g
+                    JOIN spark_gifts_catalog gc ON gc.id = g.gift_id
+                    LEFT JOIN spark_profiles p ON p.user_id = g.from_user_id
+                    WHERE g.to_user_id = %s ORDER BY g.created_at DESC LIMIT 30
+                """, (w_user,))
+                rows = cur.fetchall()
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'gifts': [
+                    {'id': str(r[0]), 'from_user_id': str(r[1]), 'name': r[2], 'emoji': r[3], 'price': r[4],
+                     'message': r[5] or '', 'created_at': r[6].isoformat(),
+                     'sender_name': r[7] or '?', 'sender_photo': ((r[8] or [''])[0]) if r[8] else ''} for r in rows
+                ]})}
+
         return {'statusCode': 404, 'headers': CORS, 'body': json.dumps({'error': 'Unknown action'})}
 
     finally:

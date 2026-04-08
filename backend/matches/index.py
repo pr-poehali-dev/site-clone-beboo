@@ -122,9 +122,28 @@ def handler(event: dict, context) -> dict:
                 return {'statusCode': 403, 'headers': CORS, 'body': json.dumps({'error': 'Нет доступа'})}
             cur.execute("SELECT id, sender_id, text, image_url, msg_type, read, created_at FROM spark_messages WHERE match_id = %s ORDER BY created_at ASC", (match_id,))
             msgs = cur.fetchall()
-            cur.execute("UPDATE spark_messages SET read = TRUE WHERE match_id = %s AND sender_id != %s AND read = FALSE", (match_id, user_id))
+            cur.execute("UPDATE spark_messages SET read = TRUE, read_at = NOW() WHERE match_id = %s AND sender_id != %s AND read = FALSE", (match_id, user_id))
+            # Обновляем online_at при чтении сообщений
+            cur.execute("UPDATE spark_profiles SET online_at = NOW() WHERE user_id = %s", (user_id,))
             conn.commit()
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'messages': [msg_dict(m, user_id) for m in msgs]})}
+
+        # ── Typing indicator ──────────────────────────────────────────────
+        if action == 'typing' and method == 'POST':
+            body = json.loads(event.get('body') or '{}')
+            match_id = body.get('match_id', '')
+            if not check_match(cur, match_id, user_id):
+                return {'statusCode': 403, 'headers': CORS, 'body': json.dumps({'error': 'Нет доступа'})}
+            # Обновляем онлайн при наборе
+            cur.execute("UPDATE spark_profiles SET online_at = NOW() WHERE user_id = %s", (user_id,))
+            conn.commit()
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}
+
+        # ── Online ping ───────────────────────────────────────────────────
+        if action == 'ping' and method == 'POST':
+            cur.execute("UPDATE spark_profiles SET online_at = NOW() WHERE user_id = %s", (user_id,))
+            conn.commit()
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}
 
         if action == 'send' and method == 'POST':
             body = json.loads(event.get('body') or '{}')
@@ -139,6 +158,7 @@ def handler(event: dict, context) -> dict:
                 return {'statusCode': 422, 'headers': CORS, 'body': json.dumps({'error': violation})}
             cur.execute("INSERT INTO spark_messages (match_id, sender_id, text, msg_type) VALUES (%s, %s, %s, 'text') RETURNING id, created_at", (match_id, user_id, text))
             row = cur.fetchone()
+            cur.execute("UPDATE spark_profiles SET online_at = NOW() WHERE user_id = %s", (user_id,))
             conn.commit()
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps(msg_dict((row[0], user_id, text, None, 'text', False, row[1]), user_id))}
 

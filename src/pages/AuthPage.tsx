@@ -6,11 +6,69 @@ interface AuthPageProps {
   onRegister: (email: string, password: string, name: string, age: number, gender: string) => Promise<void>;
 }
 
+function PolicyModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl p-6 w-full max-w-sm max-h-[80vh] flex flex-col animate-slide-up" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4 shrink-0">
+          <h3 className="text-base font-black text-foreground">Пользовательское соглашение</h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-secondary flex items-center justify-center">
+            <Icon name="X" size={18} />
+          </button>
+        </div>
+        <div className="overflow-y-auto flex-1 space-y-4 text-sm text-foreground/80 leading-relaxed pr-1">
+          <p className="font-bold text-foreground">Последнее обновление: апрель 2025</p>
+
+          <div>
+            <p className="font-bold text-foreground mb-1">1. Общие положения</p>
+            <p>Настоящее Соглашение регулирует использование сервиса знакомств Spark (далее — «Сервис»). Регистрируясь, вы подтверждаете, что достигли 18 лет и соглашаетесь с условиями.</p>
+          </div>
+
+          <div>
+            <p className="font-bold text-foreground mb-1">2. Правила поведения</p>
+            <p>Запрещается: публиковать ложную информацию о себе; использовать фотографии других лиц; отправлять спам, домогательства или угрозы; делиться контактными данными в профиле и сообщениях (телефоны, ссылки на соцсети); публиковать контент сексуального, насильственного или мошеннического характера.</p>
+          </div>
+
+          <div>
+            <p className="font-bold text-foreground mb-1">3. Конфиденциальность</p>
+            <p>Мы собираем email, имя, возраст, пол и фотографии исключительно для работы Сервиса. Данные не передаются третьим лицам без вашего согласия. Переписка между пользователями хранится на серверах Сервиса.</p>
+          </div>
+
+          <div>
+            <p className="font-bold text-foreground mb-1">4. Безопасность</p>
+            <p>Общайтесь только внутри Сервиса до личного знакомства. Не переводите деньги незнакомым людям. При подозрении на мошенничество — сразу используйте кнопку «Пожаловаться».</p>
+          </div>
+
+          <div>
+            <p className="font-bold text-foreground mb-1">5. Контент и подписка</p>
+            <p>Виртуальная валюта (монеты) и подарки не имеют денежного эквивалента и не подлежат возврату. Подписка Premium активируется немедленно и не возвращается после использования.</p>
+          </div>
+
+          <div>
+            <p className="font-bold text-foreground mb-1">6. Блокировка</p>
+            <p>Администрация вправе заблокировать аккаунт без предупреждения при нарушении правил. Решение о блокировке можно оспорить через центр поддержки.</p>
+          </div>
+
+          <div>
+            <p className="font-bold text-foreground mb-1">7. Ответственность</p>
+            <p>Сервис не несёт ответственности за действия пользователей за пределами платформы. Мы делаем всё возможное для проверки анкет, но не гарантируем достоверность данных.</p>
+          </div>
+        </div>
+        <button onClick={onClose} className="mt-4 w-full py-3 rounded-2xl btn-primary text-white font-bold shrink-0">
+          Понятно
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function AuthPage({ onLogin, onRegister }: AuthPageProps) {
   const [mode, setMode] = useState<'welcome' | 'login' | 'register'>('welcome');
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [agreed, setAgreed] = useState(false);
+  const [showPolicy, setShowPolicy] = useState(false);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,6 +100,7 @@ export default function AuthPage({ onLogin, onRegister }: AuthPageProps) {
   const handleRegisterStep2 = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !age || !gender) { setError('Заполните все поля'); return; }
+    if (!agreed) { setError('Необходимо принять пользовательское соглашение'); return; }
     setError('');
     setLoading(true);
     try {
@@ -294,9 +353,23 @@ export default function AuthPage({ onLogin, onRegister }: AuthPageProps) {
               </div>
             )}
 
+            <label className="flex items-start gap-3 cursor-pointer group">
+              <div className={`mt-0.5 w-5 h-5 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all ${agreed ? 'bg-primary border-primary' : 'border-border group-hover:border-primary/50'}`}
+                onClick={() => setAgreed(v => !v)}>
+                {agreed && <Icon name="Check" size={12} className="text-white" />}
+              </div>
+              <p className="text-sm text-foreground/80 leading-relaxed">
+                Я принимаю{' '}
+                <button type="button" onClick={() => setShowPolicy(true)} className="text-primary font-bold underline">
+                  пользовательское соглашение
+                </button>{' '}
+                и подтверждаю, что мне исполнилось 18 лет
+              </p>
+            </label>
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !agreed}
               className="btn-primary w-full py-4 text-base mt-2 disabled:opacity-60"
             >
               {loading ? 'Создаём аккаунт...' : 'Создать профиль 🎉'}
@@ -304,6 +377,7 @@ export default function AuthPage({ onLogin, onRegister }: AuthPageProps) {
           </form>
         </div>
       )}
+      {showPolicy && <PolicyModal onClose={() => setShowPolicy(false)} />}
     </div>
   );
 }

@@ -264,6 +264,21 @@ def handler(event: dict, context) -> dict:
                 'is_premium': row[1] if row else False,
             })}
 
+        # ── Пожаловаться на пользователя ────────────────────────────────
+        if action == 'report' and method == 'POST':
+            body = json.loads(event.get('body') or '{}')
+            to_id = body.get('to_user_id')
+            reason = body.get('reason', 'Нарушение правил').strip()
+            if not to_id or not reason:
+                return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Нет данных'})}
+            # Проверяем не дублируем
+            cur.execute("SELECT id FROM spark_reports WHERE from_user_id = %s AND to_user_id = %s AND status = 'open'", (user_id, to_id))
+            if cur.fetchone():
+                return {'statusCode': 409, 'headers': CORS, 'body': json.dumps({'error': 'Жалоба уже отправлена'})}
+            cur.execute("INSERT INTO spark_reports (from_user_id, to_user_id, reason, status) VALUES (%s, %s, %s, 'open')", (user_id, to_id, reason))
+            conn.commit()
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}
+
         return {'statusCode': 404, 'headers': CORS, 'body': json.dumps({'error': 'Unknown action'})}
 
     finally:

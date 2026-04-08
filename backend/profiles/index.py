@@ -49,22 +49,33 @@ def handler(event: dict, context) -> dict:
             return {'statusCode': 401, 'headers': CORS, 'body': json.dumps({'error': 'Не авторизован'})}
 
         if action == 'discover':
-            cur.execute("SELECT search_gender, search_age_min, search_age_max FROM spark_profiles WHERE user_id = %s", (user_id,))
+            cur.execute("SELECT search_gender, search_age_min, search_age_max, incognito FROM spark_profiles WHERE user_id = %s", (user_id,))
             prefs = cur.fetchone()
             gender_filter = prefs[0] if prefs else 'all'
             age_min = prefs[1] if prefs else 18
             age_max = prefs[2] if prefs else 45
             gender_clause = "" if gender_filter == 'all' else f"AND p.gender = '{gender_filter}'"
+            # Буст: профили с активным бустом идут первыми, потом онлайн
             cur.execute(f"""
-                SELECT p.user_id, p.name, p.age, p.gender, p.city, p.bio, p.photos, p.tags, p.job, p.education, p.height, p.verified
+                SELECT p.user_id, p.name, p.age, p.gender, p.city, p.bio, p.photos, p.tags, p.job, p.education, p.height, p.verified,
+                       EXISTS(SELECT 1 FROM spark_boosts b WHERE b.user_id = p.user_id AND b.expires_at > NOW()) AS is_boosted
                 FROM spark_profiles p
                 WHERE p.user_id != %s AND p.age >= %s AND p.age <= %s {gender_clause}
+                  AND (p.incognito IS NULL OR p.incognito = FALSE)
                   AND p.user_id NOT IN (SELECT to_user_id FROM spark_likes WHERE from_user_id = %s)
                   AND array_length(p.photos, 1) > 0
-                ORDER BY p.online_at DESC LIMIT 20
+                ORDER BY
+                    EXISTS(SELECT 1 FROM spark_boosts b WHERE b.user_id = p.user_id AND b.expires_at > NOW()) DESC,
+                    p.online_at DESC NULLS LAST
+                LIMIT 20
             """, (user_id, age_min, age_max, user_id))
             rows = cur.fetchall()
-            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'profiles': [profile_to_dict(r) for r in rows]})}
+            profiles = []
+            for r in rows:
+                d = profile_to_dict(r)
+                d['is_boosted'] = r[12]
+                profiles.append(d)
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'profiles': profiles})}
 
         if action == 'my':
             cur.execute("""
