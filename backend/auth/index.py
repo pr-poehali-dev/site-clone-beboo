@@ -270,6 +270,18 @@ def handler(event: dict, context) -> dict:
             if not p:
                 return err('Профиль не найден', 404)
 
+            # Дата истечения Premium подписки
+            premium_expires_at = None
+            if p[15]:  # is_premium
+                cur.execute("""
+                    SELECT expires_at FROM spark_subscriptions
+                    WHERE user_id = %s AND status = 'active' AND expires_at > NOW()
+                    ORDER BY expires_at DESC LIMIT 1
+                """, (user_id,))
+                sub_row = cur.fetchone()
+                if sub_row:
+                    premium_expires_at = sub_row[0].isoformat()
+
             raw_photos = p[5] or []
             fixed_photos = [url.replace('/files/spark/', '/bucket/spark/') for url in raw_photos]
             if fixed_photos != raw_photos:
@@ -319,6 +331,7 @@ def handler(event: dict, context) -> dict:
                 'search_radius': p[10], 'search_gender': p[11],
                 'search_age_min': p[12], 'search_age_max': p[13],
                 'verified': p[14], 'is_premium': bool(p[15]), 'is_admin': bool(p[16]),
+                'premium_expires_at': premium_expires_at,
                 'daily_reward': daily_reward,
             })
 

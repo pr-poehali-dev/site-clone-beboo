@@ -15,7 +15,7 @@ function getToken(): string {
   return localStorage.getItem('spark_token') || '';
 }
 
-const FETCH_TIMEOUT = 15000; // 15 секунд таймаут
+const FETCH_TIMEOUT = 30000; // 30 секунд таймаут (учитываем холодный старт функций ~16с)
 
 async function req<T>(
   service: keyof typeof URLS,
@@ -45,9 +45,13 @@ async function req<T>(
     });
   } catch (e: unknown) {
     if (e instanceof Error && e.name === 'AbortError') {
-      throw new Error('Превышено время ожидания. Проверьте интернет-соединение.');
+      throw new Error('Сервер не отвечает. Попробуйте ещё раз.');
     }
-    throw new Error('Нет связи с сервером. Проверьте интернет-соединение.');
+    // TypeError: Failed to fetch — сеть или CORS
+    if (e instanceof TypeError) {
+      throw new Error('Не удалось подключиться к серверу. Попробуйте ещё раз.');
+    }
+    throw new Error('Ошибка соединения. Попробуйте ещё раз.');
   } finally {
     clearTimeout(timeoutId);
   }
@@ -168,6 +172,7 @@ export interface UserProfile extends Profile {
   search_radius: number; search_gender: string;
   search_age_min: number; search_age_max: number;
   is_premium?: boolean; is_admin?: boolean;
+  premium_expires_at?: string | null;
 }
 export interface IncomingLike {
   user_id: string; name: string; photo: string; age: number; is_super: boolean; created_at: string;

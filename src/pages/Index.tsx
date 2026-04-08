@@ -9,6 +9,7 @@ import AdminPage from './AdminPage';
 import FavoritesPage from './FavoritesPage';
 import ViewersPage from './ViewersPage';
 import WalletPage from './WalletPage';
+import PremiumModal from '@/components/profile/PremiumModal';
 import Icon from '@/components/ui/icon';
 import { api } from '@/api/client';
 
@@ -152,6 +153,11 @@ export default function Index() {
 
       {/* Admin Panel Overlay */}
       {showAdmin && <AdminPage onClose={() => setShowAdmin(false)} />}
+
+      {/* Premium Modal (из ViewersPage и других мест) */}
+      {showPremiumModal && (
+        <PremiumModal onClose={() => setShowPremiumModal(false)} onRefresh={auth.refreshUser} />
+      )}
 
       {/* Ежедневная награда */}
       {auth.dailyReward && (

@@ -11,6 +11,47 @@ interface ProfilePageProps {
   onRefresh: () => Promise<void>;
 }
 
+function PremiumStatusBadge({ expiresAt, onUpgrade }: { expiresAt: string | null; onUpgrade: () => void }) {
+  const formatExpiry = () => {
+    if (!expiresAt) return null;
+    const exp = new Date(expiresAt);
+    const now = new Date();
+    const diffMs = exp.getTime() - now.getTime();
+    if (diffMs <= 0) return 'Истёк';
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const dateStr = exp.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+    if (days > 30) return `до ${dateStr}`;
+    if (days > 0) return `${days} дн ${hours} ч · до ${dateStr}`;
+    return `${hours} ч · до ${dateStr}`;
+  };
+
+  const expiry = formatExpiry();
+  const isExpiringSoon = expiresAt && (new Date(expiresAt).getTime() - Date.now()) < 3 * 24 * 60 * 60 * 1000;
+
+  return (
+    <div className="w-full flex items-center gap-3 p-4 rounded-2xl mb-4"
+      style={{ background: 'linear-gradient(135deg, hsl(340 82% 58%) 0%, hsl(262 80% 64%) 100%)' }}>
+      <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+        <Icon name="Star" size={20} className="text-white" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="font-black text-white text-sm">Spark Premium активен</p>
+          {isExpiringSoon && (
+            <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-400 text-white">Скоро истечёт</span>
+          )}
+        </div>
+        {expiry && <p className="text-white/80 text-xs mt-0.5">Осталось: {expiry}</p>}
+      </div>
+      <button onClick={onUpgrade}
+        className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 transition-colors text-white text-xs font-bold shrink-0">
+        Продлить
+      </button>
+    </div>
+  );
+}
+
 export default function ProfilePage({ user, onLogout, onRefresh }: ProfilePageProps) {
   const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('profile');
   const [editing, setEditing] = useState(false);
@@ -178,8 +219,10 @@ export default function ProfilePage({ user, onLogout, onRefresh }: ProfilePagePr
           </div>
         )}
 
-        {/* Premium CTA — только если не Premium */}
-        {!user.is_premium && (
+        {/* Premium статус / CTA */}
+        {user.is_premium ? (
+          <PremiumStatusBadge expiresAt={user.premium_expires_at || null} onUpgrade={() => setShowPremium(true)} />
+        ) : (
           <button onClick={() => setShowPremium(true)}
             className="w-full flex items-center gap-3 p-4 rounded-2xl mb-4 text-left active:scale-[0.98] transition-transform"
             style={{ background: 'linear-gradient(135deg, hsl(340 82% 58%) 0%, hsl(262 80% 64%) 100%)' }}>

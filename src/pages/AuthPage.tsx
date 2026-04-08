@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { api } from '@/api/client';
 import Icon from '@/components/ui/icon';
 
 interface AuthPageProps {
@@ -74,18 +75,22 @@ export default function AuthPage({ onLogin, onRegister }: AuthPageProps) {
   const [newPwd, setNewPwd] = useState('');
   const [newPwd2, setNewPwd2] = useState('');
 
-  // Проверяем наличие reset_token в URL при загрузке
-  const urlResetToken = new URLSearchParams(window.location.search).get('reset_token') || new URLSearchParams(window.location.hash.replace('#', '?')).get('reset_token');
-  if (urlResetToken && mode !== 'reset') {
-    setResetToken(urlResetToken);
-    setMode('reset');
-  }
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
   const [gender, setGender] = useState('');
+
+  // Проверяем наличие reset_token в URL при загрузке
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace('#', '?'));
+    const token = params.get('reset_token') || hashParams.get('reset_token');
+    if (token) {
+      setResetToken(token);
+      setMode('reset');
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
