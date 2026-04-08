@@ -142,7 +142,7 @@ def handler(event: dict, context) -> dict:
                               aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
                               aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'])
             s3.put_object(Bucket='files', Key=key, Body=img_bytes, ContentType=f'image/{ext}')
-            image_url = f"https://cdn.poehali.dev/projects/{os.environ['AWS_ACCESS_KEY_ID']}/files/{key}"
+            image_url = f"https://cdn.poehali.dev/projects/{os.environ['AWS_ACCESS_KEY_ID']}/bucket/{key}"
 
             cur.execute("INSERT INTO spark_messages (match_id, sender_id, text, image_url, msg_type) VALUES (%s, %s, '', %s, 'image') RETURNING id, created_at", (match_id, user_id, image_url))
             row = cur.fetchone()

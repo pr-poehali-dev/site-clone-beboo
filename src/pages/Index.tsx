@@ -70,10 +70,11 @@ export default function Index() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {/* Admin кнопка — быстрый доступ через двойной тап на логотипе, или кнопка для demo */}
-          <button onClick={() => setShowAdmin(true)} className="w-8 h-8 rounded-xl bg-secondary flex items-center justify-center hover:bg-border transition-colors" title="Admin">
-            <Icon name="Shield" size={15} className="text-muted-foreground" />
-          </button>
+          {auth.isAdmin && (
+            <button onClick={() => setShowAdmin(true)} className="w-8 h-8 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center hover:bg-rose-100 transition-colors" title="Панель управления">
+              <Icon name="Shield" size={15} className="text-rose-500" />
+            </button>
+          )}
           {activeTab === 'discover' && (
             <button onClick={() => setActiveTab('profile')} className="w-9 h-9 rounded-full overflow-hidden border-2 border-border hover:border-primary transition-colors">
               <img src={avatarSrc} alt="" className="w-full h-full object-cover"

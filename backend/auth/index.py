@@ -102,15 +102,31 @@ def handler(event: dict, context) -> dict:
             if not row:
                 return {'statusCode': 401, 'headers': CORS, 'body': json.dumps({'error': 'Сессия истекла'})}
             user_id = row[0]
-            cur.execute("SELECT name, age, gender, city, bio, photos, tags, job, education, height, search_radius, search_gender, search_age_min, search_age_max, verified FROM spark_profiles WHERE user_id = %s", (user_id,))
+            cur.execute("""
+                SELECT p.name, p.age, p.gender, p.city, p.bio, p.photos, p.tags, p.job, p.education,
+                       p.height, p.search_radius, p.search_gender, p.search_age_min, p.search_age_max,
+                       p.verified, p.is_premium, u.is_admin
+                FROM spark_profiles p
+                JOIN spark_users u ON u.id = p.user_id
+                WHERE p.user_id = %s
+            """, (user_id,))
             p = cur.fetchone()
             if not p:
                 return {'statusCode': 404, 'headers': CORS, 'body': json.dumps({'error': 'Профиль не найден'})}
+
+            # Фиксируем старые битые URL фото (files -> bucket)
+            raw_photos = p[5] or []
+            fixed_photos = [url.replace('/files/spark/', '/bucket/spark/') for url in raw_photos]
+            if fixed_photos != raw_photos:
+                cur.execute("UPDATE spark_profiles SET photos = %s WHERE user_id = %s", (fixed_photos, user_id))
+                conn.commit()
+
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({
                 'user_id': str(user_id), 'name': p[0], 'age': p[1], 'gender': p[2], 'city': p[3],
-                'bio': p[4], 'photos': p[5] or [], 'tags': p[6] or [],
+                'bio': p[4], 'photos': fixed_photos, 'tags': p[6] or [],
                 'job': p[7], 'education': p[8], 'height': p[9],
-                'search_radius': p[10], 'search_gender': p[11], 'search_age_min': p[12], 'search_age_max': p[13], 'verified': p[14],
+                'search_radius': p[10], 'search_gender': p[11], 'search_age_min': p[12], 'search_age_max': p[13],
+                'verified': p[14], 'is_premium': bool(p[15]), 'is_admin': bool(p[16]),
             })}
 
         # logout

@@ -96,7 +96,8 @@ export interface Profile {
 }
 export interface UserProfile extends Profile {
   search_radius: number; search_gender: string;
-  search_age_min: number; search_age_max: number; is_premium?: boolean;
+  search_age_min: number; search_age_max: number;
+  is_premium?: boolean; is_admin?: boolean;
 }
 export interface IncomingLike {
   user_id: string; name: string; photo: string; age: number; is_super: boolean; created_at: string;

@@ -4,6 +4,7 @@ import { api, UserProfile } from '@/api/client';
 export interface AuthState {
   isLoading: boolean;
   isAuthed: boolean;
+  isAdmin: boolean;
   user: UserProfile | null;
   userId: string | null;
   token: string | null;
@@ -76,6 +77,7 @@ export function useAuth(): AuthState {
   return {
     isLoading,
     isAuthed: !!token && !!user,
+    isAdmin: !!(user as UserProfile & { is_admin?: boolean })?.is_admin,
     user,
     userId,
     token,

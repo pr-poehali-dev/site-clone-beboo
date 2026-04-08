@@ -47,7 +47,7 @@ def upload_image(data_url, folder):
         raise ValueError('Файл слишком большой (макс 15MB)')
     key = f"spark/{folder}/{uuid.uuid4()}.{ext}"
     s3_client().put_object(Bucket='files', Key=key, Body=img_bytes, ContentType=f'image/{ext}')
-    return f"https://cdn.poehali.dev/projects/{os.environ['AWS_ACCESS_KEY_ID']}/files/{key}"
+    return f"https://cdn.poehali.dev/projects/{os.environ['AWS_ACCESS_KEY_ID']}/bucket/{key}"
 
 def handler(event: dict, context) -> dict:
     if event.get('httpMethod') == 'OPTIONS':

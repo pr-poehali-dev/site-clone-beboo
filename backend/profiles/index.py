@@ -20,10 +20,13 @@ def get_user_id(cur, token):
     row = cur.fetchone()
     return row[0] if row else None
 
+def fix_photos(photos):
+    return [url.replace('/files/spark/', '/bucket/spark/') for url in (photos or [])]
+
 def profile_to_dict(row):
     return {
         'user_id': str(row[0]), 'name': row[1], 'age': row[2], 'gender': row[3], 'city': row[4],
-        'bio': row[5], 'photos': row[6] or [], 'tags': row[7] or [],
+        'bio': row[5], 'photos': fix_photos(row[6]), 'tags': row[7] or [],
         'job': row[8] or '', 'education': row[9] or '', 'height': row[10],
         'verified': row[11], 'online': True, 'distance': 3,
     }
