@@ -15,11 +15,14 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
   const [matchData, setMatchData] = useState<{ name: string; photo: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [boosting, setBoosting] = useState(false);
+  const [undoing, setUndoing] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
   const topCardRef = useRef<SwipeCardRef>(null);
 
   useEffect(() => {
     void userId;
     loadProfiles();
+    api.profiles.my().then(p => setIsPremium(!!p.is_premium)).catch(() => {});
   }, [userId]);
 
   const loadProfiles = async () => {
@@ -70,6 +73,21 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
       }
     } catch { /* ignore */ }
   }, [deck]);
+
+  const pressUndo = async () => {
+    if (undoing) return;
+    setUndoing(true);
+    try {
+      const r = await api.likes.undo();
+      if (r.restored_profile) {
+        setDeck(prev => [r.restored_profile!, ...prev]);
+      }
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message.includes('Premium')) {
+        alert('Отмена свайпа — функция Premium');
+      }
+    } finally { setUndoing(false); }
+  };
 
   // Кнопки внизу — триггерят анимацию карточки через ref
   const pressLike = () => {
@@ -139,7 +157,20 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
 
       {/* Кнопки действий */}
       {visible.length > 0 && (
-        <div className="flex items-center justify-center gap-4 py-5 px-4 shrink-0">
+        <div className="flex items-center justify-center gap-3 py-5 px-4 shrink-0">
+          {/* Отмена свайпа (Undo) — только Premium */}
+          <button
+            onClick={pressUndo}
+            disabled={undoing}
+            title={isPremium ? 'Отменить последний свайп' : 'Только Premium'}
+            className={`w-10 h-10 rounded-full bg-white border-2 flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all disabled:opacity-40 ${isPremium ? 'border-violet-200 hover:border-violet-400' : 'border-border opacity-40'}`}
+          >
+            {undoing
+              ? <div className="w-4 h-4 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+              : <Icon name="RotateCcw" size={16} className={isPremium ? 'text-violet-400' : 'text-muted-foreground'} />
+            }
+          </button>
+
           {/* Пропустить */}
           <button
             onClick={pressPass}

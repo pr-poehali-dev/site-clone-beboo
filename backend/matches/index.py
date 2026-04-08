@@ -7,6 +7,7 @@ import os
 import base64
 import uuid
 from datetime import datetime, timezone
+import re
 import psycopg2
 import boto3
 
@@ -15,6 +16,25 @@ CORS = {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token',
 }
+
+BANNED_RE = re.compile(
+    r'\b(tg|vk|vк|тг|тгк|телег\w*|телеграм\w*|вконтакт\w*|инстаграм\w*|инста\b|ватсап\w*|вайбер\w*|скайп\w*|дискорд\w*|twitter|facebook|whatsapp|viber|snapchat|тикток|tiktok|онлифанс|onlyfans|блядь|бляд[ьъ]|пизд[аеёиоуы]\w*|хуй|хую|хуе|хуя|еб[аё]\w*|нахуй|пиздец|заебал|ебать|ёбать|залупа|мудак|мудил|долбоёб|долбоеб|шлюх[аи]|проститутк[аи]|сука\b|гандон|пидор|пидар)\b',
+    re.IGNORECASE
+)
+CONTACTS_RE = re.compile(
+    r'(@[\w.]+|https?://|www\.|t\.me/|vk\.com/|instagram\.com/|\+?[78][\s.(]?\d{3}|whatsapp|telegram)',
+    re.IGNORECASE
+)
+PHONE_RE = re.compile(r'\b(\d[\s\-()]{0,3}){7,}\d\b')
+
+def check_message(text: str):
+    if BANNED_RE.search(text):
+        return 'Сообщение содержит запрещённые слова или упоминания мессенджеров'
+    if CONTACTS_RE.search(text):
+        return 'Контакты и ссылки запрещены — общайтесь только внутри приложения'
+    if PHONE_RE.search(text):
+        return 'Телефонные номера запрещены — общайтесь только внутри приложения'
+    return None
 
 def get_db():
     return psycopg2.connect(os.environ['DATABASE_URL'], options=f"-c search_path={os.environ['MAIN_DB_SCHEMA']}")
@@ -114,6 +134,9 @@ def handler(event: dict, context) -> dict:
                 return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Нет данных'})}
             if not check_match(cur, match_id, user_id):
                 return {'statusCode': 403, 'headers': CORS, 'body': json.dumps({'error': 'Нет доступа'})}
+            violation = check_message(text)
+            if violation:
+                return {'statusCode': 422, 'headers': CORS, 'body': json.dumps({'error': violation})}
             cur.execute("INSERT INTO spark_messages (match_id, sender_id, text, msg_type) VALUES (%s, %s, %s, 'text') RETURNING id, created_at", (match_id, user_id, text))
             row = cur.fetchone()
             conn.commit()

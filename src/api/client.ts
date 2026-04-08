@@ -64,6 +64,11 @@ export const api = {
     unfavorite: (target_id: string) => req<{ ok: boolean }>('likes', 'unfavorite', 'POST', { target_id }),
     favorites: () => req<{ favorites: FavoriteProfile[] }>('likes', 'favorites', 'GET'),
     trial: () => req<{ ok: boolean; days: number }>('likes', 'trial', 'POST'),
+    undo: () => req<{ ok: boolean; restored_profile: Profile | null }>('likes', 'undo', 'POST'),
+    view: (target_id: string) => req<{ ok: boolean }>('likes', 'view', 'POST', { target_id }),
+    myViewers: () => req<ViewersResult>('likes', 'my_viewers', 'GET'),
+    incognito: (enabled: boolean) => req<{ ok: boolean; incognito: boolean }>('likes', 'incognito', 'POST', { enabled }),
+    incognitoStatus: () => req<{ incognito: boolean; is_premium: boolean }>('likes', 'incognito_status', 'GET'),
   },
   matches: {
     list: () => req<{ matches: Match[] }>('matches', 'list', 'GET'),
@@ -71,9 +76,15 @@ export const api = {
     send: (match_id: string, text: string) => req<Message>('matches', 'send', 'POST', { match_id, text }),
     sendImage: (match_id: string, data: string) => req<Message>('matches', 'send_image', 'POST', { match_id, data }),
   },
+  payment: {
+    create: (plan: string) => req<PaymentResult>('upload', 'pay_create', 'POST', { plan }),
+    status: (payment_id: string) => req<{ status: string; plan?: string }>('upload', 'pay_status', 'GET', undefined, { payment_id }),
+  },
   upload: {
     photo: (data: string) => req<{ url: string; photos: string[] }>('upload', 'photo', 'POST', { data }),
     removePhoto: (url: string) => req<{ photos: string[] }>('upload', 'remove', 'POST', { url }),
+    selfie: (data: string) => req<{ ok: boolean; status: string }>('upload', 'selfie', 'POST', { data }),
+    selfieStatus: () => req<{ status: string }>('upload', 'selfie_status', 'GET'),
   },
   admin: {
     stats: () => adminReq<AdminStats>('stats'),
@@ -91,6 +102,8 @@ export const api = {
     topUsers: () => adminReq<{ users: TopUser[] }>('top_users'),
     userMatches: (user_id: string) => adminReq<{ matches: AdminMatch[] }>('user_matches', 'GET', undefined, { user_id }),
     readChat: (match_id: string) => adminReq<{ messages: AdminMessage[] }>('read_chat', 'GET', undefined, { match_id }),
+    selfieRequests: () => adminReq<{ requests: SelfieRequest[] }>('selfie_requests'),
+    approveSelfie: (user_id: string, approved: boolean) => adminReq<{ ok: boolean }>('approve_selfie', 'POST', { user_id, approved }),
   },
 };
 
@@ -154,4 +167,17 @@ export interface AdminMatch {
 export interface AdminMessage {
   id: string; sender_id: string; text: string; image_url: string | null;
   msg_type: string; created_at: string; sender_name: string;
+}
+export interface ProfileViewer {
+  user_id: string; name: string; photo: string; age: number; city: string; verified: boolean; viewed_at: string;
+}
+export interface ViewersResult {
+  locked: boolean; count: number; viewers: ProfileViewer[];
+}
+export interface SelfieRequest {
+  user_id: string; email: string; selfie_url: string; status: string;
+  created_at: string; name: string; age: number; photo: string;
+}
+export interface PaymentResult {
+  payment_id: string; pay_url: string; amount: number; plan: string; provider: string;
 }

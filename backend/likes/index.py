@@ -173,6 +173,97 @@ def handler(event: dict, context) -> dict:
             conn.commit()
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'days': days})}
 
+        # ── Отмена последнего свайпа (undo) ─────────────────────────────
+        if action == 'undo' and method == 'POST':
+            cur.execute("SELECT is_premium FROM spark_profiles WHERE user_id = %s", (user_id,))
+            pr = cur.fetchone()
+            if not pr or not pr[0]:
+                return {'statusCode': 403, 'headers': CORS, 'body': json.dumps({'error': 'Только для Premium'})}
+            cur.execute("""
+                SELECT to_user_id FROM spark_likes
+                WHERE from_user_id = %s
+                ORDER BY created_at DESC LIMIT 1
+            """, (user_id,))
+            last = cur.fetchone()
+            if not last:
+                return {'statusCode': 404, 'headers': CORS, 'body': json.dumps({'error': 'Нечего отменять'})}
+            to_id = last[0]
+            cur.execute("UPDATE spark_likes SET created_at = '2000-01-01' WHERE from_user_id = %s AND to_user_id = %s", (user_id, to_id))
+            u1, u2 = sorted([str(user_id), str(to_id)])
+            cur.execute("UPDATE spark_matches SET created_at = '2000-01-01' WHERE user1_id = %s AND user2_id = %s", (u1, u2))
+            cur.execute("SELECT p.user_id, p.name, p.photos, p.age, p.city, p.bio, p.tags, p.job, p.education, p.height, p.verified FROM spark_profiles p WHERE p.user_id = %s", (to_id,))
+            row = cur.fetchone()
+            conn.commit()
+            profile = None
+            if row:
+                profile = {
+                    'user_id': str(row[0]), 'name': row[1],
+                    'photos': fix_photos(row[2]), 'age': row[3], 'city': row[4],
+                    'bio': row[5] or '', 'tags': row[6] or [], 'job': row[7] or '',
+                    'education': row[8] or '', 'height': row[9], 'verified': row[10], 'online': False,
+                }
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'restored_profile': profile})}
+
+        # ── Записать просмотр профиля ────────────────────────────────────
+        if action == 'view' and method == 'POST':
+            body = json.loads(event.get('body') or '{}')
+            target_id = body.get('target_id')
+            if not target_id or str(target_id) == str(user_id):
+                return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Нет target_id'})}
+            # Инкогнито: не записывать если смотрящий скрыт
+            cur.execute("SELECT incognito FROM spark_profiles WHERE user_id = %s", (user_id,))
+            inc = cur.fetchone()
+            if not inc or not inc[0]:
+                cur.execute("INSERT INTO spark_profile_views (viewer_id, target_id) VALUES (%s, %s)", (user_id, target_id))
+                conn.commit()
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}
+
+        # ── Кто просматривал мой профиль (Premium) ──────────────────────
+        if action == 'my_viewers':
+            cur.execute("SELECT is_premium FROM spark_profiles WHERE user_id = %s", (user_id,))
+            pr = cur.fetchone()
+            if not pr or not pr[0]:
+                cur.execute("SELECT COUNT(*) FROM spark_profile_views WHERE target_id = %s AND created_at > NOW() - INTERVAL '7 days'", (user_id,))
+                cnt = cur.fetchone()[0]
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'locked': True, 'count': cnt, 'viewers': []})}
+            cur.execute("""
+                SELECT DISTINCT ON (v.viewer_id) v.viewer_id, p.name, p.photos, p.age, p.city, p.verified, v.created_at
+                FROM spark_profile_views v
+                JOIN spark_profiles p ON p.user_id = v.viewer_id
+                WHERE v.target_id = %s AND v.created_at > NOW() - INTERVAL '7 days'
+                ORDER BY v.viewer_id, v.created_at DESC
+                LIMIT 30
+            """, (user_id,))
+            rows = cur.fetchall()
+            viewers = [{
+                'user_id': str(r[0]), 'name': r[1],
+                'photo': (fix_photos(r[2]) or [''])[0],
+                'age': r[3], 'city': r[4], 'verified': r[5],
+                'viewed_at': r[6].isoformat(),
+            } for r in rows]
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'locked': False, 'count': len(viewers), 'viewers': viewers})}
+
+        # ── Переключить инкогнито ────────────────────────────────────────
+        if action == 'incognito' and method == 'POST':
+            cur.execute("SELECT is_premium FROM spark_profiles WHERE user_id = %s", (user_id,))
+            pr = cur.fetchone()
+            if not pr or not pr[0]:
+                return {'statusCode': 403, 'headers': CORS, 'body': json.dumps({'error': 'Только для Premium'})}
+            body = json.loads(event.get('body') or '{}')
+            enabled = body.get('enabled', True)
+            cur.execute("UPDATE spark_profiles SET incognito = %s WHERE user_id = %s", (enabled, user_id))
+            conn.commit()
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'incognito': enabled})}
+
+        # ── Статус инкогнито ─────────────────────────────────────────────
+        if action == 'incognito_status':
+            cur.execute("SELECT incognito, is_premium FROM spark_profiles WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({
+                'incognito': row[0] if row else False,
+                'is_premium': row[1] if row else False,
+            })}
+
         return {'statusCode': 404, 'headers': CORS, 'body': json.dumps({'error': 'Unknown action'})}
 
     finally:

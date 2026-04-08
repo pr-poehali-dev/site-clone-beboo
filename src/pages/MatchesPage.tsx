@@ -103,6 +103,7 @@ export default function MatchesPage({ userId }: { userId: string }) {
   const [msgLoading, setMsgLoading] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState('');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -159,12 +160,16 @@ export default function MatchesPage({ userId }: { userId: string }) {
 
   const send = async () => {
     if (!text.trim() || !selected || sending) return;
-    const t = text; setText(''); setSending(true);
+    const t = text; setText(''); setSending(true); setSendError('');
     try {
       const msg = await api.matches.send(selected.match_id, t);
       setMessages(p => [...p, msg]);
       setMatches(p => p.map(m => m.match_id === selected.match_id ? { ...m, last_message: t, last_time: msg.created_at } : m));
-    } catch { setText(t); } finally { setSending(false); }
+    } catch (e: unknown) {
+      setText(t);
+      const msg = e instanceof Error ? e.message : '';
+      setSendError(msg.includes('запрещ') || msg.includes('Контакт') || msg.includes('Телефон') ? msg : '');
+    } finally { setSending(false); }
   };
 
   const sendImage = async (dataUrl: string) => {
@@ -230,6 +235,26 @@ export default function MatchesPage({ userId }: { userId: string }) {
                   💫 Вы мэтч с {selected.name}! Начните общение
                 </div>
               </div>
+              {/* Icebreakers — показываем только если нет сообщений */}
+              {messages.length === 0 && (
+                <div className="px-2 pb-2">
+                  <p className="text-xs text-muted-foreground text-center mb-2 font-semibold">Не знаешь с чего начать?</p>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {[
+                      `Привет, ${selected.name}! Как твой день? 😊`,
+                      'Что тебя сегодня зацепило? ✨',
+                      'Куда мечтаешь съездить? 🌍',
+                      'Чем занимаешься в свободное время? 🎯',
+                      'Какой последний фильм тебя впечатлил? 🎬',
+                    ].map(q => (
+                      <button key={q} onClick={() => { setText(q); }}
+                        className="px-3 py-1.5 rounded-full bg-secondary border border-border text-xs text-foreground font-medium hover:border-primary hover:bg-primary/5 transition-all text-left max-w-[200px] truncate">
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {messages.map((msg, i) => {
                 const mine = msg.is_mine ?? (msg.sender_id === userId);
                 const prevMine = i > 0 ? (messages[i - 1].is_mine ?? (messages[i - 1].sender_id === userId)) : null;
@@ -285,6 +310,12 @@ export default function MatchesPage({ userId }: { userId: string }) {
 
         {/* Input */}
         <div className="p-3 border-t border-border bg-white shrink-0">
+          {sendError && (
+            <div className="mb-2 px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-600 font-semibold flex items-center gap-2">
+              <Icon name="AlertCircle" size={13} className="shrink-0" />
+              {sendError}
+            </div>
+          )}
           <div className="flex items-center gap-2 bg-secondary rounded-2xl px-3 py-2">
             <button onClick={() => fileRef.current?.click()}
               className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-primary transition-colors shrink-0">

@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { Profile } from '@/api/client';
+import { useState, useRef, useCallback, forwardRef, useImperativeHandle, useEffect } from 'react';
+import { Profile, api } from '@/api/client';
 import Icon from '@/components/ui/icon';
 
 export interface SwipeCardRef {
@@ -29,6 +29,13 @@ const SwipeCard = forwardRef<SwipeCardRef, SwipeCardProps>(
     const [exiting, setExiting] = useState<'left' | 'right' | 'up' | null>(null);
     const [showInfo, setShowInfo] = useState(false);
     const [favorited, setFavorited] = useState(false);
+
+    // Записываем просмотр когда карточка становится верхней
+    useEffect(() => {
+      if (isTop && profile.user_id) {
+        api.likes.view(profile.user_id).catch(() => {});
+      }
+    }, [isTop, profile.user_id]);
     const startX = useRef(0);
     const isDrag = useRef(false);
     const fired = useRef(false);

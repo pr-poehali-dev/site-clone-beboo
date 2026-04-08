@@ -44,6 +44,8 @@ function PremiumModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: 
   const [selected, setSelected] = useState('3m');
   const [activating, setActivating] = useState(false);
 
+  const [paying, setPaying] = useState(false);
+
   const activateTrial = async () => {
     setActivating(true);
     try {
@@ -54,6 +56,32 @@ function PremiumModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: 
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : 'Не удалось активировать триал');
     } finally { setActivating(false); }
+  };
+
+  const handlePay = async () => {
+    setPaying(true);
+    try {
+      const r = await api.payment.create(selected);
+      window.open(r.pay_url, '_blank');
+      // Ждём возврата и проверяем статус
+      const check = setInterval(async () => {
+        const s = await api.payment.status(r.payment_id);
+        if (s.status === 'paid') {
+          clearInterval(check);
+          await onRefresh();
+          alert('Оплата прошла успешно! Premium активирован.');
+          onClose();
+        }
+      }, 5000);
+      setTimeout(() => clearInterval(check), 300000);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg.includes('недоступна') || msg.includes('настроена')) {
+        alert('Оплата пока не подключена. Попробуйте бесплатный триал!');
+      } else {
+        alert(msg || 'Ошибка оплаты');
+      }
+    } finally { setPaying(false); }
   };
 
   return (
@@ -104,16 +132,130 @@ function PremiumModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: 
           ))}
         </div>
 
-        <button className="w-full py-3.5 rounded-2xl text-white font-black text-sm mb-3 disabled:opacity-60"
+        <button className="w-full py-3.5 rounded-2xl text-white font-black text-sm mb-2 disabled:opacity-60"
           style={{ background: 'linear-gradient(135deg, hsl(340 82% 58%), hsl(262 80% 64%))' }}
+          disabled={paying}
+          onClick={handlePay}>
+          {paying ? 'Переходим к оплате...' : `Оплатить ${selected === '1m' ? '299 ₽' : selected === '3m' ? '699 ₽' : '1 999 ₽'}`}
+        </button>
+        <button className="w-full py-2.5 rounded-2xl border border-border text-foreground font-bold text-sm mb-2 disabled:opacity-60"
           disabled={activating}
           onClick={activateTrial}>
           {activating ? 'Активация...' : 'Попробовать бесплатно 3 дня'}
         </button>
-        <button onClick={onClose} className="w-full py-3 text-sm text-muted-foreground font-semibold">
+        <button onClick={onClose} className="w-full py-2 text-sm text-muted-foreground font-semibold">
           Не сейчас
         </button>
       </div>
+    </div>
+  );
+}
+
+function SelfieVerification({ verified }: { verified: boolean }) {
+  const [status, setStatus] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (verified) { setStatus('approved'); return; }
+    api.upload.selfieStatus().then(r => setStatus(r.status)).catch(() => setStatus('none'));
+  }, [verified]);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      const data = ev.target?.result as string;
+      setUploading(true);
+      try {
+        const r = await api.upload.selfie(data);
+        setStatus(r.status);
+        alert('Селфи отправлено! Мы проверим его в течение 24 часов.');
+      } catch (err: unknown) {
+        alert(err instanceof Error ? err.message : 'Ошибка загрузки');
+      } finally { setUploading(false); }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const badge = verified || status === 'approved'
+    ? { icon: 'BadgeCheck', color: 'text-blue-500', bg: 'bg-blue-50', label: 'Верифицирован', sub: 'Ваш профиль подтверждён' }
+    : status === 'pending'
+    ? { icon: 'Clock', color: 'text-amber-500', bg: 'bg-amber-50', label: 'На проверке', sub: 'Ждём подтверждения (до 24ч)' }
+    : status === 'rejected'
+    ? { icon: 'XCircle', color: 'text-rose-500', bg: 'bg-rose-50', label: 'Отклонено', sub: 'Попробуй снова с чётким фото' }
+    : { icon: 'ShieldCheck', color: 'text-muted-foreground', bg: 'bg-secondary', label: 'Не верифицирован', sub: 'Загрузи селфи для проверки' };
+
+  return (
+    <div className="rounded-2xl border border-border overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3.5">
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${badge.bg}`}>
+            <Icon name={badge.icon} size={18} className={badge.color} />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-foreground">{badge.label}</p>
+            <p className="text-xs text-muted-foreground">{badge.sub}</p>
+          </div>
+        </div>
+        {(status === 'none' || status === 'rejected') && (
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="px-3 py-1.5 rounded-xl btn-primary text-white text-xs font-bold disabled:opacity-60">
+            {uploading ? '...' : 'Загрузить'}
+          </button>
+        )}
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      {(status === 'none' || status === 'rejected') && (
+        <div className="px-4 pb-3 text-xs text-muted-foreground">
+          Сделай чёткое селфи своего лица — мы сравним с фото профиля и поставим синюю галочку ✓
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IncognitoToggle({ isPremium }: { isPremium: boolean }) {
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.likes.incognitoStatus()
+      .then(r => setEnabled(r.incognito))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggle = async () => {
+    if (!isPremium) { alert('Режим инкогнито — только для Premium'); return; }
+    setSaving(true);
+    try {
+      const r = await api.likes.incognito(!enabled);
+      setEnabled(r.incognito);
+    } catch { /* ignore */ } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="rounded-2xl border border-border overflow-hidden">
+      <button onClick={toggle} disabled={loading || saving}
+        className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-secondary/50 transition-colors">
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${enabled && isPremium ? 'bg-violet-100' : 'bg-secondary'}`}>
+            <Icon name="EyeOff" size={18} className={enabled && isPremium ? 'text-violet-500' : 'text-muted-foreground'} />
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-bold text-foreground">Режим инкогнито</p>
+            <p className="text-xs text-muted-foreground">{isPremium ? (enabled ? 'Вас не видят в поиске' : 'Вы видны в поиске') : 'Только для Premium'}</p>
+          </div>
+        </div>
+        <div className={`relative w-11 h-6 rounded-full transition-colors ${enabled && isPremium ? 'bg-violet-500' : 'bg-border'}`}>
+          <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${enabled && isPremium ? 'translate-x-5' : 'translate-x-0.5'}`} />
+        </div>
+      </button>
     </div>
   );
 }
@@ -397,6 +539,18 @@ export default function ProfilePage({ user, onLogout, onRefresh }: ProfilePagePr
               <button onClick={handleSave} disabled={saving} className="btn-primary w-full py-3 text-sm mt-3 text-white font-bold disabled:opacity-60 rounded-2xl">
                 {saving ? 'Сохраняем...' : 'Сохранить'}
               </button>
+            </div>
+
+            {/* Верификация по селфи */}
+            <div>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">Верификация</p>
+              <SelfieVerification verified={!!user.verified} />
+            </div>
+
+            {/* Режим инкогнито */}
+            <div>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">Приватность</p>
+              <IncognitoToggle isPremium={!!user.is_premium} />
             </div>
 
             <button onClick={onLogout}

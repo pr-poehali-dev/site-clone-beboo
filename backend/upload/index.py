@@ -1,15 +1,73 @@
 """
-Загрузка фото профиля + вся Админ-панель.
-Upload: ?action=photo|remove
-Admin: ?action=stats|users|user_detail|ban|unban|verify|grant_premium|revoke_premium|settings|update_setting|reports|resolve_report|top_users
-Admin защита: заголовок X-Admin-Key = 'sparkladmin2024'
+Загрузка фото + Админ-панель + Платежи (ЮKassa/Робокасса).
+Upload: ?action=photo|remove|selfie|selfie_status
+Admin: ?action=stats|users|user_detail|ban|unban|verify|grant_premium|revoke_premium|settings|update_setting|reports|resolve_report|top_users|selfie_requests|approve_selfie
+Payment: ?action=pay_create|pay_status|pay_webhook_yukassa|pay_webhook_robokassa
+Admin защита: заголовок X-Admin-Key
 """
 import json
 import os
 import base64
 import uuid
+import hashlib
+import hmac
+import urllib.request
+import urllib.parse
 import psycopg2
 import boto3
+
+PLANS = {
+    '1m':  {'days': 30,  'amount': 299,  'label': '1 месяц'},
+    '3m':  {'days': 90,  'amount': 699,  'label': '3 месяца'},
+    '12m': {'days': 365, 'amount': 1999, 'label': '12 месяцев'},
+}
+
+def get_setting_val(cur, key, default=''):
+    cur.execute("SELECT value FROM spark_settings WHERE key = %s", (key,))
+    row = cur.fetchone()
+    return row[0] if row else default
+
+def activate_premium(cur, user_id, plan):
+    days = PLANS[plan]['days']
+    amount = PLANS[plan]['amount']
+    cur.execute("UPDATE spark_profiles SET is_premium = TRUE WHERE user_id = %s", (user_id,))
+    cur.execute("""
+        INSERT INTO spark_subscriptions (user_id, plan, price, status, expires_at)
+        VALUES (%s, %s, %s, 'active', NOW() + %s * INTERVAL '1 day')
+    """, (user_id, plan, amount, days))
+
+def yukassa_create(shop_id, secret_key, amount, order_id, description, return_url):
+    data = json.dumps({
+        'amount': {'value': f'{amount}.00', 'currency': 'RUB'},
+        'confirmation': {'type': 'redirect', 'return_url': return_url},
+        'capture': True, 'description': description,
+        'metadata': {'order_id': order_id},
+    }).encode()
+    creds = base64.b64encode(f"{shop_id}:{secret_key}".encode()).decode()
+    req = urllib.request.Request(
+        'https://api.yookassa.ru/v3/payments', data=data, method='POST',
+        headers={'Authorization': f'Basic {creds}', 'Content-Type': 'application/json',
+                 'Idempotence-Key': str(uuid.uuid4())})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        res = json.loads(r.read())
+    return res['id'], res['confirmation']['confirmation_url']
+
+def yukassa_check(shop_id, secret_key, payment_id):
+    creds = base64.b64encode(f"{shop_id}:{secret_key}".encode()).decode()
+    req = urllib.request.Request(f'https://api.yookassa.ru/v3/payments/{payment_id}',
+                                  headers={'Authorization': f'Basic {creds}'})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.loads(r.read())['status']
+
+def robokassa_url(login, pass1, amount, inv_id, description):
+    sig = hashlib.md5(f"{login}:{amount:.2f}:{inv_id}:{pass1}".encode()).hexdigest()
+    p = urllib.parse.urlencode({'MerchantLogin': login, 'OutSum': f'{amount:.2f}', 'InvId': inv_id,
+                                'Description': description, 'SignatureValue': sig, 'IsTest': 0})
+    return f"https://auth.robokassa.ru/Merchant/Index.aspx?{p}"
+
+def robokassa_check_sig(pass2, out_sum, inv_id, sig):
+    expected = hashlib.md5(f"{out_sum}:{inv_id}:{pass2}".encode()).hexdigest()
+    return hmac.compare_digest(expected.lower(), sig.lower())
 
 CORS = {
     'Access-Control-Allow-Origin': '*',
@@ -94,6 +152,36 @@ def handler(event: dict, context) -> dict:
                 row = cur.fetchone()
                 conn.commit()
                 return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'photos': row[0] if row else []})}
+
+        # ── Загрузка селфи для верификации ──────────────────────
+        if action == 'selfie':
+            user_id = get_user_id(cur, token)
+            if not user_id:
+                return {'statusCode': 401, 'headers': CORS, 'body': json.dumps({'error': 'Не авторизован'})}
+            body = json.loads(event.get('body') or '{}')
+            data_url = body.get('data')
+            if not data_url:
+                return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Нет данных'})}
+            cur.execute("SELECT selfie_status FROM spark_users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            if row and row[0] == 'approved':
+                return {'statusCode': 409, 'headers': CORS, 'body': json.dumps({'error': 'Уже верифицирован'})}
+            try:
+                selfie_url = upload_image(data_url, f"selfies/{user_id}")
+            except ValueError as e:
+                return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': str(e)})}
+            cur.execute("UPDATE spark_users SET selfie_url = %s, selfie_status = 'pending' WHERE id = %s", (selfie_url, user_id))
+            conn.commit()
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'status': 'pending'})}
+
+        if action == 'selfie_status':
+            user_id = get_user_id(cur, token)
+            if not user_id:
+                return {'statusCode': 401, 'headers': CORS, 'body': json.dumps({'error': 'Не авторизован'})}
+            cur.execute("SELECT selfie_status FROM spark_users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            status = row[0] if row else 'none'
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'status': status})}
 
         # ════════════════════════════════════════════════════════
         # ADMIN (требует X-Admin-Key)
@@ -322,6 +410,120 @@ def handler(event: dict, context) -> dict:
                  'msg_type': r[4] or 'text', 'created_at': r[5].isoformat(), 'sender_name': r[6] or '?'}
                 for r in msgs
             ]})}
+
+        # ── Список заявок на верификацию (admin) ────────────────────────
+        if action == 'selfie_requests':
+            cur.execute("""
+                SELECT u.id, u.email, u.selfie_url, u.selfie_status, u.created_at,
+                       p.name, p.age, p.photos
+                FROM spark_users u
+                LEFT JOIN spark_profiles p ON p.user_id = u.id
+                WHERE u.selfie_status = 'pending'
+                ORDER BY u.created_at ASC LIMIT 50
+            """)
+            rows = cur.fetchall()
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'requests': [
+                {'user_id': str(r[0]), 'email': r[1], 'selfie_url': r[2], 'status': r[3],
+                 'created_at': r[4].isoformat(), 'name': r[5], 'age': r[6],
+                 'photo': ((r[7] or [''])[0]) if r[7] else ''} for r in rows
+            ]})}
+
+        # ── Одобрить/отклонить верификацию (admin) ──────────────────────
+        if action == 'approve_selfie' and method == 'POST':
+            uid = body.get('user_id')
+            approved = body.get('approved', True)
+            status = 'approved' if approved else 'rejected'
+            cur.execute("UPDATE spark_users SET selfie_status = %s WHERE id = %s", (status, uid))
+            if approved:
+                cur.execute("UPDATE spark_profiles SET verified = TRUE WHERE user_id = %s", (uid,))
+            conn.commit()
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'status': status})}
+
+        # ════════════════════════════════════════════════════════
+        # PAYMENT (требует auth-token, публичные)
+        # ════════════════════════════════════════════════════════
+        if action == 'pay_create' and method == 'POST':
+            pay_user = get_user_id(cur, token)
+            if not pay_user:
+                return {'statusCode': 401, 'headers': CORS, 'body': json.dumps({'error': 'Не авторизован'})}
+            pay_body = json.loads(event.get('body') or '{}')
+            plan = pay_body.get('plan', '1m')
+            if plan not in PLANS:
+                return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Неверный план'})}
+            provider = get_setting_val(cur, 'payment_provider', 'yukassa')
+            if get_setting_val(cur, 'payment_enabled', 'false') != 'true':
+                return {'statusCode': 503, 'headers': CORS, 'body': json.dumps({'error': 'Оплата временно недоступна'})}
+            amount = PLANS[plan]['amount']
+            cur.execute("INSERT INTO spark_payments (user_id, provider, plan, amount, status) VALUES (%s, %s, %s, %s, 'pending') RETURNING id", (pay_user, provider, plan, amount))
+            pid = str(cur.fetchone()[0])
+            conn.commit()
+            return_url = pay_body.get('return_url', 'https://spark.poehali.dev/')
+            if provider == 'yukassa':
+                shop_id = get_setting_val(cur, 'yukassa_shop_id')
+                secret = get_setting_val(cur, 'yukassa_secret_key')
+                if not shop_id or not secret:
+                    return {'statusCode': 503, 'headers': CORS, 'body': json.dumps({'error': 'ЮKassa не настроена'})}
+                ext_id, pay_url = yukassa_create(shop_id, secret, amount, pid, f"Spark Premium {PLANS[plan]['label']}", return_url)
+                cur.execute("UPDATE spark_payments SET external_id = %s WHERE id = %s", (ext_id, pid))
+            else:
+                login = get_setting_val(cur, 'robokassa_login')
+                p1 = get_setting_val(cur, 'robokassa_pass1')
+                if not login or not p1:
+                    return {'statusCode': 503, 'headers': CORS, 'body': json.dumps({'error': 'Робокасса не настроена'})}
+                inv_id = int(pid.replace('-', '')[:8], 16) % 2147483647
+                pay_url = robokassa_url(login, p1, amount, inv_id, f"Spark Premium {PLANS[plan]['label']}")
+                cur.execute("UPDATE spark_payments SET external_id = %s WHERE id = %s", (str(inv_id), pid))
+            conn.commit()
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'payment_id': pid, 'pay_url': pay_url, 'amount': amount, 'plan': plan, 'provider': provider})}
+
+        if action == 'pay_status':
+            pay_user = get_user_id(cur, token)
+            if not pay_user:
+                return {'statusCode': 401, 'headers': CORS, 'body': json.dumps({'error': 'Не авторизован'})}
+            pid = params.get('payment_id', '')
+            cur.execute("SELECT id, provider, external_id, plan, status FROM spark_payments WHERE id = %s AND user_id = %s", (pid, pay_user))
+            row = cur.fetchone()
+            if not row:
+                return {'statusCode': 404, 'headers': CORS, 'body': json.dumps({'error': 'Не найден'})}
+            db_id, prov, ext_id, plan, db_status = row
+            if db_status == 'paid':
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'status': 'paid', 'plan': plan})}
+            if prov == 'yukassa' and ext_id:
+                yk = yukassa_check(get_setting_val(cur, 'yukassa_shop_id'), get_setting_val(cur, 'yukassa_secret_key'), ext_id)
+                if yk == 'succeeded':
+                    cur.execute("UPDATE spark_payments SET status = 'paid', paid_at = NOW() WHERE id = %s", (db_id,))
+                    activate_premium(cur, pay_user, plan)
+                    conn.commit()
+                    return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'status': 'paid', 'plan': plan})}
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'status': db_status})}
+
+        if action == 'pay_webhook_yukassa' and method == 'POST':
+            wb = json.loads(event.get('body') or '{}')
+            obj = wb.get('object', {})
+            if obj.get('status') == 'succeeded':
+                cur.execute("SELECT id, user_id, plan FROM spark_payments WHERE external_id = %s AND status = 'pending'", (obj.get('id'),))
+                row = cur.fetchone()
+                if row:
+                    cur.execute("UPDATE spark_payments SET status = 'paid', paid_at = NOW() WHERE id = %s", (row[0],))
+                    activate_premium(cur, row[1], row[2])
+                    conn.commit()
+            return {'statusCode': 200, 'headers': CORS, 'body': 'ok'}
+
+        if action == 'pay_webhook_robokassa' and method == 'POST':
+            parts = {}
+            for p in (event.get('body') or '').split('&'):
+                if '=' in p:
+                    k, v = p.split('=', 1)
+                    parts[urllib.parse.unquote_plus(k)] = urllib.parse.unquote_plus(v)
+            inv_id = parts.get('InvId', '')
+            if robokassa_check_sig(get_setting_val(cur, 'robokassa_pass2'), parts.get('OutSum', ''), inv_id, parts.get('SignatureValue', '')):
+                cur.execute("SELECT id, user_id, plan FROM spark_payments WHERE external_id = %s AND status = 'pending'", (inv_id,))
+                row = cur.fetchone()
+                if row:
+                    cur.execute("UPDATE spark_payments SET status = 'paid', paid_at = NOW() WHERE id = %s", (row[0],))
+                    activate_premium(cur, row[1], row[2])
+                    conn.commit()
+            return {'statusCode': 200, 'headers': {'Content-Type': 'text/plain', **CORS}, 'body': f'OK{inv_id}'}
 
         return {'statusCode': 404, 'headers': CORS, 'body': json.dumps({'error': 'Unknown action'})}
 
