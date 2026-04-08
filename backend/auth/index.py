@@ -56,6 +56,26 @@ def handler(event: dict, context) -> dict:
             cur.execute("INSERT INTO spark_profiles (user_id, name, age, gender) VALUES (%s, %s, %s, %s)", (user_id, name, age, gender))
             token_new = secrets.token_hex(32)
             cur.execute("INSERT INTO spark_sessions (user_id, token) VALUES (%s, %s)", (user_id, token_new))
+
+            # Подбираем 4 тестовых анкеты противоположного/любого пола — они лайкают нового пользователя
+            opposite = 'male' if gender == 'female' else 'female'
+            cur.execute("""
+                SELECT user_id FROM spark_profiles
+                WHERE user_id != %s AND (gender = %s OR gender = 'other')
+                ORDER BY RANDOM() LIMIT 4
+            """, (user_id, opposite))
+            admirers = [r[0] for r in cur.fetchall()]
+            # Если мало противоположного пола — добавляем любых
+            if len(admirers) < 2:
+                cur.execute("SELECT user_id FROM spark_profiles WHERE user_id != %s ORDER BY RANDOM() LIMIT 4", (user_id,))
+                admirers = [r[0] for r in cur.fetchall()]
+
+            for admirer_id in admirers:
+                cur.execute(
+                    "INSERT INTO spark_likes (from_user_id, to_user_id, is_super) VALUES (%s, %s, FALSE) ON CONFLICT DO NOTHING",
+                    (admirer_id, user_id)
+                )
+
             conn.commit()
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'token': token_new, 'user_id': str(user_id), 'name': name})}
 
