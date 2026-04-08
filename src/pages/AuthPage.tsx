@@ -63,12 +63,23 @@ function PolicyModal({ onClose }: { onClose: () => void }) {
 }
 
 export default function AuthPage({ onLogin, onRegister }: AuthPageProps) {
-  const [mode, setMode] = useState<'welcome' | 'login' | 'register'>('welcome');
+  const [mode, setMode] = useState<'welcome' | 'login' | 'register' | 'forgot' | 'reset'>('welcome');
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [showPolicy, setShowPolicy] = useState(false);
+  const [resetToken, setResetToken] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [newPwd2, setNewPwd2] = useState('');
+
+  // Проверяем наличие reset_token в URL при загрузке
+  const urlResetToken = new URLSearchParams(window.location.search).get('reset_token') || new URLSearchParams(window.location.hash.replace('#', '?')).get('reset_token');
+  if (urlResetToken && mode !== 'reset') {
+    setResetToken(urlResetToken);
+    setMode('reset');
+  }
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -171,6 +182,87 @@ export default function AuthPage({ onLogin, onRegister }: AuthPageProps) {
     );
   }
 
+  if (mode === 'forgot') {
+    const handleForgot = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError(''); setSuccess(''); setLoading(true);
+      try {
+        const r = await api.auth.forgotPassword(email);
+        setSuccess(r.message || 'Письмо отправлено!');
+        if (r.dev_token) setSuccess(`DEV: используй токен ${r.dev_token} для сброса пароля`);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Ошибка');
+      } finally { setLoading(false); }
+    };
+    return (
+      <div className="min-h-screen flex flex-col justify-center p-6 max-w-sm mx-auto">
+        <button onClick={() => { setMode('login'); setError(''); setSuccess(''); }} className="flex items-center gap-2 text-muted-foreground mb-8 hover:text-foreground transition-colors">
+          <Icon name="ChevronLeft" size={20} /><span className="text-sm font-semibold">Назад</span>
+        </button>
+        <div className="animate-slide-up">
+          <h2 className="text-3xl font-black text-foreground mb-1">Забыли пароль?</h2>
+          <p className="text-muted-foreground mb-8">Введите email — пришлём ссылку для сброса</p>
+          <form onSubmit={handleForgot} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">Email</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required
+                className="w-full bg-secondary border border-border rounded-2xl px-4 py-3.5 text-sm text-foreground outline-none focus:border-primary transition-colors" />
+            </div>
+            {error && <div className="flex items-center gap-2 p-3 rounded-xl bg-destructive/10 border border-destructive/20"><Icon name="AlertCircle" size={16} className="text-destructive shrink-0" /><p className="text-sm text-destructive">{error}</p></div>}
+            {success && <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200"><Icon name="CheckCircle" size={16} className="text-emerald-600 shrink-0" /><p className="text-sm text-emerald-700">{success}</p></div>}
+            <button type="submit" disabled={loading} className="btn-primary w-full py-4 text-base mt-2 disabled:opacity-60">
+              {loading ? 'Отправляем...' : 'Отправить ссылку'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === 'reset') {
+    const handleReset = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (newPwd !== newPwd2) { setError('Пароли не совпадают'); return; }
+      if (newPwd.length < 6) { setError('Пароль минимум 6 символов'); return; }
+      setError(''); setLoading(true);
+      try {
+        const r = await api.auth.resetPassword(resetToken, newPwd);
+        setSuccess(r.message || 'Пароль изменён!');
+        setTimeout(() => { setMode('login'); setSuccess(''); window.history.replaceState({}, '', window.location.pathname); }, 2000);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Ошибка');
+      } finally { setLoading(false); }
+    };
+    return (
+      <div className="min-h-screen flex flex-col justify-center p-6 max-w-sm mx-auto">
+        <div className="animate-slide-up">
+          <div className="w-16 h-16 rounded-3xl mx-auto mb-6 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, hsl(340 82% 58%), hsl(262 80% 64%))' }}>
+            <Icon name="Lock" size={28} className="text-white" />
+          </div>
+          <h2 className="text-3xl font-black text-foreground mb-1 text-center">Новый пароль</h2>
+          <p className="text-muted-foreground mb-8 text-center">Придумайте надёжный пароль</p>
+          <form onSubmit={handleReset} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">Новый пароль</label>
+              <input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="••••••••" required minLength={6}
+                className="w-full bg-secondary border border-border rounded-2xl px-4 py-3.5 text-sm text-foreground outline-none focus:border-primary transition-colors" />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">Повторите пароль</label>
+              <input type="password" value={newPwd2} onChange={e => setNewPwd2(e.target.value)} placeholder="••••••••" required
+                className="w-full bg-secondary border border-border rounded-2xl px-4 py-3.5 text-sm text-foreground outline-none focus:border-primary transition-colors" />
+            </div>
+            {error && <div className="flex items-center gap-2 p-3 rounded-xl bg-destructive/10 border border-destructive/20"><Icon name="AlertCircle" size={16} className="text-destructive shrink-0" /><p className="text-sm text-destructive">{error}</p></div>}
+            {success && <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200"><Icon name="CheckCircle" size={16} className="text-emerald-600 shrink-0" /><p className="text-sm text-emerald-700">{success}</p></div>}
+            <button type="submit" disabled={loading} className="btn-primary w-full py-4 text-base mt-2 disabled:opacity-60">
+              {loading ? 'Сохраняем...' : 'Сохранить пароль'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   if (mode === 'login') {
     return (
       <div className="min-h-screen flex flex-col justify-center p-6 max-w-sm mx-auto">
@@ -223,12 +315,17 @@ export default function AuthPage({ onLogin, onRegister }: AuthPageProps) {
             </button>
           </form>
 
-          <p className="text-center text-sm text-muted-foreground mt-6">
-            Нет аккаунта?{' '}
-            <button onClick={() => setMode('register')} className="text-primary font-bold hover:underline">
-              Зарегистрироваться
+          <div className="flex items-center justify-between mt-6">
+            <p className="text-sm text-muted-foreground">
+              Нет аккаунта?{' '}
+              <button onClick={() => setMode('register')} className="text-primary font-bold hover:underline">
+                Создать
+              </button>
+            </p>
+            <button onClick={() => { setMode('forgot'); setError(''); setSuccess(''); }} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+              Забыли пароль?
             </button>
-          </p>
+          </div>
         </div>
       </div>
     );

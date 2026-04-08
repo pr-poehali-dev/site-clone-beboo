@@ -74,41 +74,52 @@ def handler(event: dict, context) -> dict:
             return {'statusCode': 401, 'headers': CORS, 'body': json.dumps({'error': 'Не авторизован'})}
 
         if action == 'list':
+            # Оптимизированный запрос — один JOIN вместо N+1 SELECT в цикле
             cur.execute("""
-                SELECT m.id,
+                SELECT
+                    m.id AS match_id,
                     CASE WHEN m.user1_id = %s THEN m.user2_id ELSE m.user1_id END AS other_id,
-                    m.created_at,
-                    (SELECT text FROM spark_messages WHERE match_id = m.id ORDER BY created_at DESC LIMIT 1),
-                    (SELECT msg_type FROM spark_messages WHERE match_id = m.id ORDER BY created_at DESC LIMIT 1),
-                    (SELECT created_at FROM spark_messages WHERE match_id = m.id ORDER BY created_at DESC LIMIT 1),
-                    (SELECT COUNT(*) FROM spark_messages WHERE match_id = m.id AND sender_id != %s AND read = FALSE)
+                    m.created_at AS matched_at,
+                    last_msg.text AS last_text,
+                    last_msg.msg_type AS last_type,
+                    last_msg.created_at AS last_time,
+                    COALESCE(unread.cnt, 0) AS unread_count,
+                    p.name, p.photos, p.age, p.verified, p.is_premium, p.online_at
                 FROM spark_matches m
+                JOIN spark_profiles p ON p.user_id = (
+                    CASE WHEN m.user1_id = %s THEN m.user2_id ELSE m.user1_id END
+                )
+                LEFT JOIN LATERAL (
+                    SELECT text, msg_type, created_at
+                    FROM spark_messages
+                    WHERE match_id = m.id
+                    ORDER BY created_at DESC LIMIT 1
+                ) last_msg ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT COUNT(*) AS cnt
+                    FROM spark_messages
+                    WHERE match_id = m.id AND sender_id != %s AND read = FALSE
+                ) unread ON TRUE
                 WHERE m.user1_id = %s OR m.user2_id = %s
-                ORDER BY COALESCE(
-                    (SELECT created_at FROM spark_messages WHERE match_id = m.id ORDER BY created_at DESC LIMIT 1),
-                    m.created_at
-                ) DESC
-            """, (user_id, user_id, user_id, user_id))
+                ORDER BY COALESCE(last_msg.created_at, m.created_at) DESC
+            """, (user_id, user_id, user_id, user_id, user_id))
             rows = cur.fetchall()
             result = []
             for r in rows:
-                match_id, other_id, matched_at, last_msg, last_type, last_time, unread = r
-                cur.execute("SELECT name, photos, age, verified, is_premium, online_at FROM spark_profiles WHERE user_id = %s", (other_id,))
-                p = cur.fetchone()
-                if not p:
-                    continue
+                match_id, other_id, matched_at, last_text, last_type, last_time, unread, name, photos, age, verified, is_premium, online_at = r
                 online = False
-                if p[5]:
+                if online_at:
                     try:
-                        delta = datetime.now(timezone.utc) - p[5].replace(tzinfo=timezone.utc)
+                        delta = datetime.now(timezone.utc) - online_at.replace(tzinfo=timezone.utc)
                         online = delta.total_seconds() < 300
                     except Exception:
                         pass
-                preview = '📷 Фото' if last_type == 'image' else (last_msg or '')
+                fixed_photos = [url.replace('/files/spark/', '/bucket/spark/') for url in (photos or [])]
+                preview = '📷 Фото' if last_type == 'image' else (last_text or '')
                 result.append({
                     'match_id': str(match_id), 'other_user_id': str(other_id),
-                    'name': p[0], 'photo': (p[1] or [''])[0], 'age': p[2],
-                    'verified': p[3], 'is_premium': p[4],
+                    'name': name, 'photo': (fixed_photos or [''])[0], 'age': age,
+                    'verified': bool(verified), 'is_premium': bool(is_premium),
                     'matched_at': matched_at.isoformat(),
                     'last_message': preview,
                     'last_time': last_time.isoformat() if last_time else None,

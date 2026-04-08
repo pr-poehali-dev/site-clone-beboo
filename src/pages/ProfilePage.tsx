@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { api, UserProfile } from '@/api/client';
 import Icon from '@/components/ui/icon';
 import PremiumModal from '@/components/profile/PremiumModal';
-import { SelfieVerification, IncognitoToggle } from '@/components/profile/ProfileSettings';
+import { SelfieVerification, IncognitoToggle, ChangePasswordBlock } from '@/components/profile/ProfileSettings';
 import { TAGS_OPTIONS, BIO_MAX, JOB_MAX, filterBio, filterJob } from '@/components/profile/profileFilters';
 
 interface ProfilePageProps {
@@ -302,6 +302,12 @@ export default function ProfilePage({ user, onLogout, onRefresh }: ProfilePagePr
             <div>
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">Приватность</p>
               <IncognitoToggle isPremium={!!user.is_premium} />
+            </div>
+
+            {/* Смена пароля */}
+            <div>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-1">Безопасность</p>
+              <ChangePasswordBlock />
             </div>
 
             <button onClick={onLogout}

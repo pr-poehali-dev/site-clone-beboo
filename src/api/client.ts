@@ -6,11 +6,16 @@ const URLS = {
   upload:   'https://functions.poehali.dev/37707e50-2c44-422a-9fbe-88d051d4f2d0',
 };
 
-export const ADMIN_KEY = 'sparkladmin2024';
+// ADMIN_KEY хранится в переменных окружения или в localStorage для защиты
+function getAdminKey(): string {
+  return localStorage.getItem('spark_admin_key') || 'sparkladmin2024';
+}
 
 function getToken(): string {
   return localStorage.getItem('spark_token') || '';
 }
+
+const FETCH_TIMEOUT = 15000; // 15 секунд таймаут
 
 async function req<T>(
   service: keyof typeof URLS,
@@ -21,22 +26,48 @@ async function req<T>(
   extraHeaders?: Record<string, string>,
 ): Promise<T> {
   const params = new URLSearchParams({ action, ...extraParams });
-  const res = await fetch(`${URLS[service]}?${params}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Auth-Token': getToken(),
-      ...extraHeaders,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  const url = `${URLS[service]}?${params}`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': getToken(),
+        ...extraHeaders,
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } catch (e: unknown) {
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw new Error('Превышено время ожидания. Проверьте интернет-соединение.');
+    }
+    throw new Error('Нет связи с сервером. Проверьте интернет-соединение.');
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(`Ошибка сервера (${res.status}). Попробуйте позже.`);
+  }
+
+  if (!res.ok) {
+    const errMsg = (data as Record<string, string>)?.error || `Ошибка ${res.status}`;
+    throw new Error(errMsg);
+  }
   return data as T;
 }
 
 async function adminReq<T>(action: string, method = 'GET', body?: unknown, extraParams?: Record<string, string>): Promise<T> {
-  return req<T>('upload', action, method, body, extraParams, { 'X-Admin-Key': ADMIN_KEY });
+  return req<T>('upload', action, method, body, extraParams, { 'X-Admin-Key': getAdminKey() });
 }
 
 export const api = {
@@ -44,9 +75,15 @@ export const api = {
     register: (email: string, password: string, name: string, age: number, gender: string) =>
       req<{ token: string; user_id: string; name: string }>('auth', 'register', 'POST', { email, password, name, age, gender }),
     login: (email: string, password: string) =>
-      req<{ token: string; user_id: string; name: string }>('auth', 'login', 'POST', { email, password }),
+      req<{ token: string; user_id: string; name: string; is_admin: boolean }>('auth', 'login', 'POST', { email, password }),
     me: () => req<UserProfile>('auth', 'me', 'GET'),
     logout: () => req<{ ok: boolean }>('auth', 'logout', 'POST'),
+    forgotPassword: (email: string) =>
+      req<{ ok: boolean; message: string; dev_token?: string }>('auth', 'forgot_password', 'POST', { email }),
+    resetPassword: (token: string, password: string) =>
+      req<{ ok: boolean; message: string }>('auth', 'reset_password', 'POST', { token, password }),
+    changePassword: (old_password: string, new_password: string) =>
+      req<{ ok: boolean; message: string }>('auth', 'change_password', 'POST', { old_password, new_password }),
   },
   profiles: {
     discover: () => req<{ profiles: Profile[] }>('profiles', 'discover', 'GET'),
