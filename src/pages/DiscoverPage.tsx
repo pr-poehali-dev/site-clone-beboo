@@ -127,6 +127,10 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
                 onLike={handleLike}
                 onPass={handlePass}
                 onSuperLike={handleSuperLike}
+                onFavorite={async (uid) => {
+                  try { await api.likes.favorite(uid); }
+                  catch { /* ignore */ }
+                }}
               />
             );
           })

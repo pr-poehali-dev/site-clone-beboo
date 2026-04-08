@@ -10,6 +10,31 @@ interface ProfilePageProps {
 
 const TAGS_OPTIONS = ['Спорт', 'Путешествия', 'Кофе', 'Музыка', 'Кино', 'Искусство', 'Книги', 'Горы', 'Танцы', 'Кулинария', 'Йога', 'Фото', 'Игры', 'Природа'];
 
+// Запрещённые слова (соцсети, мессенджеры, маты)
+const BANNED_WORDS = /\b(tg|vk|vк|тг|тгк|телег[а-я]*|телеграм[а-я]*|вконтакт[а-я]*|вк\b|инстаграм[а-я]*|инста\b|ватсап[а-я]*|вайбер[а-я]*|скайп[а-я]*|дискорд[а-я]*|twitter|facebook|whatsapp|viber|snapchat|тикток|tiktok|онлифанс|onlyfans|ссылка|написать\s+мне|пиши\s+мне|звони\s+мне|блядь|бляд[ьъ]|пизд[аеёиоуы]|хуй|хую|хуе|хуя|ебл|ёбл|ебан|нахуй|нахуе|пиздец|заебал|заёбал|ебать|ёбать|залупа|мудак|мудил|долбоёб|долбоеб|дебил|идиот|тупой|шлюх[аи]|проститутк[аи]|сука\b|гандон|пидор|пидар|гей\b|педик|лох\b|урод|чмо\b|ублюдок)\b/gi;
+
+// Контакты: телефоны, @mentions, ссылки
+const CONTACTS_REGEX = /(@[\w.]+|https?:\/\/|www\.|t\.me\/|vk\.com\/|instagram\.com\/|fb\.com\/|\+?[78]\s*[.(]?\s*\d{3}|whatsapp|telegram)/gi;
+
+const BIO_MAX = 600;
+const JOB_MAX = 60;
+
+function filterBio(value: string): { clean: string; error: string | null } {
+  if (value.length > BIO_MAX) return { clean: value.slice(0, BIO_MAX), error: `Максимум ${BIO_MAX} символов` };
+  if (/\d/.test(value)) return { clean: value, error: 'Цифры в описании запрещены' };
+  if (BANNED_WORDS.test(value)) return { clean: value, error: 'Запрещённые слова или упоминания соцсетей/мессенджеров' };
+  if (CONTACTS_REGEX.test(value)) return { clean: value, error: 'Контакты и ссылки запрещены — общайтесь только внутри приложения' };
+  return { clean: value, error: null };
+}
+
+function filterJob(value: string): { clean: string; error: string | null } {
+  if (value.length > JOB_MAX) return { clean: value.slice(0, JOB_MAX), error: `Максимум ${JOB_MAX} символов` };
+  if (BANNED_WORDS.test(value)) return { clean: value, error: 'Запрещённые слова' };
+  if (CONTACTS_REGEX.test(value)) return { clean: value, error: 'Контакты запрещены' };
+  if (/@/.test(value)) return { clean: value, error: 'Символ @ запрещён' };
+  return { clean: value, error: null };
+}
+
 function PremiumModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: () => Promise<void> }) {
   const plans = [
     { id: '1m', label: '1 месяц', price: '299 ₽', per: '299 ₽/мес', popular: false },
@@ -99,6 +124,7 @@ export default function ProfilePage({ user, onLogout, onRefresh }: ProfilePagePr
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showPremium, setShowPremium] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ bio?: string; job?: string }>({});
   const [form, setForm] = useState({
     name: user.name,
     bio: user.bio || '',
@@ -113,8 +139,13 @@ export default function ProfilePage({ user, onLogout, onRefresh }: ProfilePagePr
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleSave = async () => {
+    if (fieldErrors.bio || fieldErrors.job) return;
+    const bioCheck = filterBio(form.bio);
+    const jobCheck = filterJob(form.job);
+    if (bioCheck.error) { setFieldErrors(fe => ({ ...fe, bio: bioCheck.error! })); return; }
+    if (jobCheck.error) { setFieldErrors(fe => ({ ...fe, job: jobCheck.error! })); return; }
     setSaving(true);
-    try { await api.profiles.update(form); await onRefresh(); setEditing(false); }
+    try { await api.profiles.update(form); await onRefresh(); setEditing(false); setFieldErrors({}); }
     catch { /* ignore */ } finally { setSaving(false); }
   };
 
@@ -183,11 +214,43 @@ export default function ProfilePage({ user, onLogout, onRefresh }: ProfilePagePr
               placeholder="Имя" className="w-full bg-secondary border border-border rounded-2xl px-4 py-2.5 text-sm outline-none focus:border-primary transition-colors" />
             <input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
               placeholder="Город" className="w-full bg-secondary border border-border rounded-2xl px-4 py-2.5 text-sm outline-none focus:border-primary transition-colors" />
-            <input value={form.job} onChange={e => setForm(f => ({ ...f, job: e.target.value }))}
-              placeholder="Работа" className="w-full bg-secondary border border-border rounded-2xl px-4 py-2.5 text-sm outline-none focus:border-primary transition-colors" />
-            <textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
-              placeholder="Расскажи о себе..." rows={3}
-              className="w-full bg-secondary border border-border rounded-2xl px-4 py-2.5 text-sm outline-none focus:border-primary transition-colors resize-none" />
+            <div>
+              <input
+                value={form.job}
+                onChange={e => {
+                  const { clean, error } = filterJob(e.target.value);
+                  setForm(f => ({ ...f, job: clean }));
+                  setFieldErrors(fe => ({ ...fe, job: error || undefined }));
+                }}
+                placeholder="Работа (необязательно)"
+                maxLength={JOB_MAX}
+                className={`w-full bg-secondary border rounded-2xl px-4 py-2.5 text-sm outline-none focus:border-primary transition-colors ${fieldErrors.job ? 'border-rose-400' : 'border-border'}`}
+              />
+              <div className="flex justify-between mt-1 px-1">
+                {fieldErrors.job ? <p className="text-xs text-rose-500">{fieldErrors.job}</p> : <span />}
+                <p className="text-xs text-muted-foreground">{form.job.length}/{JOB_MAX}</p>
+              </div>
+            </div>
+            <div>
+              <textarea
+                value={form.bio}
+                onChange={e => {
+                  const { clean, error } = filterBio(e.target.value);
+                  setForm(f => ({ ...f, bio: clean }));
+                  setFieldErrors(fe => ({ ...fe, bio: error || undefined }));
+                }}
+                placeholder="Расскажи о себе... (без цифр, контактов и ссылок)"
+                rows={4}
+                maxLength={BIO_MAX}
+                className={`w-full bg-secondary border rounded-2xl px-4 py-2.5 text-sm outline-none focus:border-primary transition-colors resize-none ${fieldErrors.bio ? 'border-rose-400' : 'border-border'}`}
+              />
+              <div className="flex justify-between mt-1 px-1">
+                {fieldErrors.bio
+                  ? <p className="text-xs text-rose-500">{fieldErrors.bio}</p>
+                  : <p className="text-xs text-muted-foreground">Без цифр, контактов и ссылок</p>}
+                <p className={`text-xs ${form.bio.length > BIO_MAX * 0.9 ? 'text-amber-500' : 'text-muted-foreground'}`}>{form.bio.length}/{BIO_MAX}</p>
+              </div>
+            </div>
             <div>
               <p className="text-xs font-bold text-muted-foreground mb-2 uppercase tracking-wider">Интересы</p>
               <div className="flex flex-wrap gap-2">

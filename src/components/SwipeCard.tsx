@@ -13,6 +13,7 @@ interface SwipeCardProps {
   onLike: () => void;
   onPass: () => void;
   onSuperLike: () => void;
+  onFavorite?: (userId: string) => void;
   isTop: boolean;
   stackIndex: number;
 }
@@ -21,12 +22,13 @@ const SWIPE_THRESHOLD = 85;
 const ANIM_MS = 380;
 
 const SwipeCard = forwardRef<SwipeCardRef, SwipeCardProps>(
-  ({ profile, onLike, onPass, onSuperLike, isTop, stackIndex }, ref) => {
+  ({ profile, onLike, onPass, onSuperLike, onFavorite, isTop, stackIndex }, ref) => {
     const [photoIdx, setPhotoIdx] = useState(0);
     const [dragX, setDragX] = useState(0);
     const [dragging, setDragging] = useState(false);
     const [exiting, setExiting] = useState<'left' | 'right' | 'up' | null>(null);
     const [showInfo, setShowInfo] = useState(false);
+    const [favorited, setFavorited] = useState(false);
     const startX = useRef(0);
     const isDrag = useRef(false);
     const fired = useRef(false);
@@ -177,13 +179,29 @@ const SwipeCard = forwardRef<SwipeCardRef, SwipeCardProps>(
                   </div>
                 )}
               </div>
-              <button
-                className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center z-10"
-                onPointerDown={e => e.stopPropagation()}
-                onClick={e => { e.stopPropagation(); setShowInfo(v => !v); }}
-              >
-                <Icon name={showInfo ? 'ChevronDown' : 'ChevronUp'} size={18} className="text-white" />
-              </button>
+              <div className="flex items-center gap-2">
+                {onFavorite && (
+                  <button
+                    className={`w-9 h-9 rounded-full backdrop-blur-sm flex items-center justify-center z-10 transition-all ${favorited ? 'bg-amber-400' : 'bg-white/20 hover:bg-white/30'}`}
+                    onPointerDown={e => e.stopPropagation()}
+                    onClick={e => {
+                      e.stopPropagation();
+                      setFavorited(v => !v);
+                      onFavorite(profile.user_id);
+                    }}
+                    title={favorited ? 'Убрать из избранного' : 'В избранное'}
+                  >
+                    <Icon name="Star" size={16} className={favorited ? 'text-white' : 'text-white'} />
+                  </button>
+                )}
+                <button
+                  className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center z-10"
+                  onPointerDown={e => e.stopPropagation()}
+                  onClick={e => { e.stopPropagation(); setShowInfo(v => !v); }}
+                >
+                  <Icon name={showInfo ? 'ChevronDown' : 'ChevronUp'} size={18} className="text-white" />
+                </button>
+              </div>
             </div>
 
             {showInfo && (
