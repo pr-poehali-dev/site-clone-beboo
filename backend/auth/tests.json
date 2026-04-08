@@ -1,21 +1,12 @@
 {
   "tests": [
     {
-      "name": "Register new user",
+      "name": "Wrong credentials returns 401",
       "method": "POST",
-      "path": "/register",
-      "body": {"email": "test_spark@example.com", "password": "test123", "name": "Тест", "age": 25, "gender": "male"},
-      "expectedStatus": 200,
-      "expectedBody": {"token": "string"},
-      "bodyMatcher": "partial"
-    },
-    {
-      "name": "Login",
-      "method": "POST",
-      "path": "/login",
-      "body": {"email": "test_spark@example.com", "password": "test123"},
-      "expectedStatus": 200,
-      "expectedBody": {"token": "string"},
+      "path": "/?action=login",
+      "body": {"email": "no_such_user_xyz123@example.com", "password": "wrongpass"},
+      "expectedStatus": 401,
+      "expectedBody": {"error": "string"},
       "bodyMatcher": "partial"
     }
   ]

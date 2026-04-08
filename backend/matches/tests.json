@@ -3,7 +3,7 @@
     {
       "name": "List matches without auth",
       "method": "GET",
-      "path": "/list",
+      "path": "/?action=list",
       "expectedStatus": 401,
       "bodyMatcher": "partial"
     }

@@ -12,11 +12,13 @@ function getToken(): string {
 
 async function req<T>(
   service: keyof typeof URLS,
-  path: string,
+  action: string,
   method: string = 'GET',
-  body?: unknown
+  body?: unknown,
+  extraParams?: Record<string, string>
 ): Promise<T> {
-  const res = await fetch(`${URLS[service]}${path}`, {
+  const params = new URLSearchParams({ action, ...extraParams });
+  const res = await fetch(`${URLS[service]}?${params}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
@@ -32,45 +34,45 @@ async function req<T>(
 export const api = {
   auth: {
     register: (email: string, password: string, name: string, age: number, gender: string) =>
-      req<{ token: string; user_id: string; name: string }>('auth', '/register', 'POST', { email, password, name, age, gender }),
+      req<{ token: string; user_id: string; name: string }>('auth', 'register', 'POST', { email, password, name, age, gender }),
     login: (email: string, password: string) =>
-      req<{ token: string; user_id: string; name: string }>('auth', '/login', 'POST', { email, password }),
+      req<{ token: string; user_id: string; name: string }>('auth', 'login', 'POST', { email, password }),
     me: () =>
-      req<UserProfile>('auth', '/me', 'GET'),
+      req<UserProfile>('auth', 'me', 'GET'),
     logout: () =>
-      req<{ ok: boolean }>('auth', '/logout', 'POST'),
+      req<{ ok: boolean }>('auth', 'logout', 'POST'),
   },
   profiles: {
     discover: () =>
-      req<{ profiles: Profile[] }>('profiles', '/discover', 'GET'),
+      req<{ profiles: Profile[] }>('profiles', 'discover', 'GET'),
     my: () =>
-      req<UserProfile>('profiles', '/my', 'GET'),
+      req<UserProfile>('profiles', 'my', 'GET'),
     update: (data: Partial<UserProfile>) =>
-      req<{ ok: boolean }>('profiles', '/update', 'PUT', data),
+      req<{ ok: boolean }>('profiles', 'update', 'POST', data),
     get: (userId: string) =>
-      req<Profile>('profiles', `/profile/${userId}`, 'GET'),
+      req<Profile>('profiles', 'get', 'GET', undefined, { user_id: userId }),
   },
   likes: {
     like: (to_user_id: string, is_super = false) =>
-      req<{ is_match: boolean; match_id: string | null; profile: { name: string; photo: string } }>('likes', '/like', 'POST', { to_user_id, is_super }),
+      req<{ is_match: boolean; match_id: string | null; profile: { name: string; photo: string } }>('likes', 'like', 'POST', { to_user_id, is_super }),
     pass: (to_user_id: string) =>
-      req<{ ok: boolean }>('likes', '/pass', 'POST', { to_user_id }),
+      req<{ ok: boolean }>('likes', 'pass', 'POST', { to_user_id }),
     incoming: () =>
-      req<{ likes: IncomingLike[] }>('likes', '/incoming', 'GET'),
+      req<{ likes: IncomingLike[] }>('likes', 'incoming', 'GET'),
   },
   matches: {
     list: () =>
-      req<{ matches: Match[] }>('matches', '/list', 'GET'),
+      req<{ matches: Match[] }>('matches', 'list', 'GET'),
     messages: (match_id: string) =>
-      req<{ messages: Message[] }>('matches', `/messages/${match_id}`, 'GET'),
+      req<{ messages: Message[] }>('matches', 'messages', 'GET', undefined, { match_id }),
     send: (match_id: string, text: string) =>
-      req<Message>('matches', '/send', 'POST', { match_id, text }),
+      req<Message>('matches', 'send', 'POST', { match_id, text }),
   },
   upload: {
     photo: (data: string) =>
-      req<{ url: string; photos: string[] }>('upload', '/photo', 'POST', { data }),
+      req<{ url: string; photos: string[] }>('upload', 'photo', 'POST', { data }),
     removePhoto: (url: string) =>
-      req<{ photos: string[] }>('upload', '/photo/remove', 'POST', { url }),
+      req<{ photos: string[] }>('upload', 'remove', 'POST', { url }),
   },
 };
 

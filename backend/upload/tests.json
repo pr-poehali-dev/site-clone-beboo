@@ -3,7 +3,7 @@
     {
       "name": "Upload photo without auth",
       "method": "POST",
-      "path": "/photo",
+      "path": "/?action=photo",
       "body": {"data": "iVBORw0KGgo="},
       "expectedStatus": 401,
       "bodyMatcher": "partial"
