@@ -141,6 +141,7 @@ export function BotsTab() {
         </div>
         <div className="space-y-0">
           {[
+            { key: 'demo_topup_enabled', label: 'Демо-пополнение кошелька', desc: 'true = бесплатно, false = только платёж' },
             { key: 'trial_enabled', label: 'Пробный период', desc: 'true / false' },
             { key: 'trial_days', label: 'Дней пробного периода', desc: '' },
             { key: 'payment_enabled', label: 'Оплата включена', desc: 'true / false' },

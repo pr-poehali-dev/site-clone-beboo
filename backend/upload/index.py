@@ -589,16 +589,36 @@ def handler(event: dict, context) -> dict:
         # ════════════════════════════════════════════════════════
         # WALLET (кошелёк — требует auth-token)
         # ════════════════════════════════════════════════════════
-        if action in ('wallet_balance', 'wallet_topup', 'wallet_history', 'gift_catalog', 'gift_send', 'gifts_received'):
+        if action in ('wallet_balance', 'wallet_topup', 'wallet_history', 'gift_catalog', 'gift_send', 'gifts_received', 'wallet_settings'):
             w_user = get_user_id(cur, token)
             if not w_user:
-                return {'statusCode': 401, 'headers': CORS, 'body': json.dumps({'error': 'Не авторизован'})}
+                return {'statusCode': 403, 'headers': CORS, 'body': json.dumps({'error': 'Не авторизован'})}
 
             if action == 'wallet_balance':
                 cur.execute("SELECT balance FROM spark_wallets WHERE user_id = %s", (w_user,))
                 row = cur.fetchone()
                 balance = row[0] if row else 0
-                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'balance': balance})}
+                # Создаём кошелёк если не существует
+                if not row:
+                    cur.execute("INSERT INTO spark_wallets (user_id, balance) VALUES (%s, 0) ON CONFLICT DO NOTHING", (w_user,))
+                    conn.commit()
+                demo = get_setting_val(cur, 'demo_topup_enabled', 'true') == 'true'
+                payment_on = get_setting_val(cur, 'payment_enabled', 'false') == 'true'
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({
+                    'balance': balance,
+                    'demo_topup_enabled': demo,
+                    'payment_enabled': payment_on,
+                    'payment_provider': get_setting_val(cur, 'payment_provider', 'yukassa'),
+                })}
+
+            if action == 'wallet_settings':
+                demo = get_setting_val(cur, 'demo_topup_enabled', 'true') == 'true'
+                payment_on = get_setting_val(cur, 'payment_enabled', 'false') == 'true'
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({
+                    'demo_topup_enabled': demo,
+                    'payment_enabled': payment_on,
+                    'payment_provider': get_setting_val(cur, 'payment_provider', 'yukassa'),
+                })}
 
             if action == 'wallet_history':
                 cur.execute("SELECT amount, type, description, created_at FROM spark_wallet_txs WHERE user_id = %s ORDER BY created_at DESC LIMIT 50", (w_user,))
@@ -608,12 +628,16 @@ def handler(event: dict, context) -> dict:
                 ]})}
 
             if action == 'wallet_topup' and method == 'POST':
+                # Проверяем что демо-пополнение разрешено
+                demo_enabled = get_setting_val(cur, 'demo_topup_enabled', 'true') == 'true'
+                if not demo_enabled:
+                    return {'statusCode': 403, 'headers': CORS, 'body': json.dumps({'error': 'Демо-пополнение отключено. Используйте оплату.'})}
                 w_body = json.loads(event.get('body') or '{}')
                 coins = int(w_body.get('coins', 0))
-                if coins <= 0:
-                    return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Укажите количество монет'})}
+                if coins <= 0 or coins > 10000:
+                    return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Укажите количество монет (1-10000)'})}
                 cur.execute("INSERT INTO spark_wallets (user_id, balance) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET balance = spark_wallets.balance + %s, updated_at = NOW()", (w_user, coins, coins))
-                cur.execute("INSERT INTO spark_wallet_txs (user_id, amount, type, description) VALUES (%s, %s, 'topup', %s)", (w_user, coins, f'Пополнение на {coins} монет'))
+                cur.execute("INSERT INTO spark_wallet_txs (user_id, amount, type, description) VALUES (%s, %s, 'topup', %s)", (w_user, coins, f'Демо-пополнение на {coins} монет'))
                 cur.execute("SELECT balance FROM spark_wallets WHERE user_id = %s", (w_user,))
                 balance = cur.fetchone()[0]
                 conn.commit()
@@ -628,31 +652,56 @@ def handler(event: dict, context) -> dict:
 
             if action == 'gift_send' and method == 'POST':
                 w_body = json.loads(event.get('body') or '{}')
-                to_id = w_body.get('to_user_id')
-                gift_id = w_body.get('gift_id')
-                message = w_body.get('message', '')
-                match_id = w_body.get('match_id')
+                to_id = w_body.get('to_user_id', '').strip()
+                gift_id = w_body.get('gift_id', '').strip()
+                message = (w_body.get('message') or '').strip()[:200]
+                match_id = w_body.get('match_id') or None
+                # Валидация: пустая строка → None
+                if match_id == '':
+                    match_id = None
                 if not to_id or not gift_id:
-                    return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Нет данных'})}
+                    return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Нет данных (to_user_id, gift_id)'})}
+                if str(to_id) == str(w_user):
+                    return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Нельзя отправить подарок себе'})}
+                # Проверяем что получатель существует
+                cur.execute("SELECT id FROM spark_users WHERE id = %s", (to_id,))
+                if not cur.fetchone():
+                    return {'statusCode': 404, 'headers': CORS, 'body': json.dumps({'error': 'Получатель не найден'})}
                 cur.execute("SELECT price, name, emoji FROM spark_gifts_catalog WHERE id = %s AND active = TRUE", (gift_id,))
                 gift_row = cur.fetchone()
                 if not gift_row:
                     return {'statusCode': 404, 'headers': CORS, 'body': json.dumps({'error': 'Подарок не найден'})}
                 price, gift_name, emoji = gift_row
+                # Баланс отправителя
                 cur.execute("SELECT balance FROM spark_wallets WHERE user_id = %s", (w_user,))
                 bal_row = cur.fetchone()
                 balance = bal_row[0] if bal_row else 0
                 if balance < price:
-                    return {'statusCode': 402, 'headers': CORS, 'body': json.dumps({'error': 'Недостаточно монет', 'balance': balance, 'required': price})}
+                    return {'statusCode': 402, 'headers': CORS, 'body': json.dumps({
+                        'error': f'Недостаточно монет. Нужно {price}, у вас {balance}',
+                        'balance': balance, 'required': price
+                    })}
+                # Списываем у отправителя
                 cur.execute("UPDATE spark_wallets SET balance = balance - %s, updated_at = NOW() WHERE user_id = %s", (price, w_user))
-                cur.execute("INSERT INTO spark_wallets (user_id, balance) VALUES (%s, 0) ON CONFLICT (user_id) DO UPDATE SET balance = spark_wallets.balance + %s, updated_at = NOW()", (to_id, price // 2))
-                cur.execute("INSERT INTO spark_gifts (from_user_id, to_user_id, gift_id, message, match_id) VALUES (%s, %s, %s, %s, %s)", (w_user, to_id, gift_id, message, match_id))
+                # Начисляем получателю (50% от стоимости подарка)
+                bonus = max(1, price // 2)
+                cur.execute("INSERT INTO spark_wallets (user_id, balance) VALUES (%s, %s) ON CONFLICT (user_id) DO UPDATE SET balance = spark_wallets.balance + %s, updated_at = NOW()", (to_id, bonus, bonus))
+                # Записываем подарок
+                cur.execute(
+                    "INSERT INTO spark_gifts (from_user_id, to_user_id, gift_id, message, match_id) VALUES (%s, %s, %s, %s, %s)",
+                    (w_user, to_id, gift_id, message or None, match_id)
+                )
+                # Транзакции
                 cur.execute("INSERT INTO spark_wallet_txs (user_id, amount, type, description) VALUES (%s, %s, 'gift_sent', %s)", (w_user, -price, f'Подарок {emoji} {gift_name}'))
-                cur.execute("INSERT INTO spark_wallet_txs (user_id, amount, type, description) VALUES (%s, %s, 'gift_received', %s)", (to_id, price // 2, f'Получен подарок {emoji} {gift_name}'))
+                cur.execute("INSERT INTO spark_wallet_txs (user_id, amount, type, description) VALUES (%s, %s, 'gift_received', %s)", (to_id, bonus, f'Получен подарок {emoji} {gift_name}'))
                 cur.execute("SELECT balance FROM spark_wallets WHERE user_id = %s", (w_user,))
                 new_balance = cur.fetchone()[0]
                 conn.commit()
-                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'balance': new_balance, 'gift': gift_name})}
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({
+                    'ok': True, 'balance': new_balance,
+                    'gift': gift_name, 'emoji': emoji,
+                    'message': f'Подарок {emoji} {gift_name} отправлен!'
+                })}
 
             if action == 'gifts_received':
                 cur.execute("""

@@ -145,16 +145,16 @@ export const api = {
     ping: () => req<{ ok: boolean }>('matches', 'ping', 'POST'),
   },
   wallet: {
-    balance: () => req<{ balance: number }>('upload', 'wallet_balance', 'GET'),
+    balance: () => req<{ balance: number; demo_topup_enabled: boolean; payment_enabled: boolean; payment_provider: string }>('upload', 'wallet_balance', 'GET'),
     history: () => req<{ transactions: WalletTx[] }>('upload', 'wallet_history', 'GET'),
     topup: (coins: number) => req<{ ok: boolean; balance: number }>('upload', 'wallet_topup', 'POST', { coins }),
     giftCatalog: () => req<{ gifts: GiftItem[] }>('upload', 'gift_catalog', 'GET'),
     sendGift: (to_user_id: string, gift_id: string, message: string, match_id?: string) =>
-      req<{ ok: boolean; balance: number; gift: string }>('upload', 'gift_send', 'POST', { to_user_id, gift_id, message, match_id }),
+      req<{ ok: boolean; balance: number; gift: string; emoji: string; message: string }>('upload', 'gift_send', 'POST', { to_user_id, gift_id, message: message || '', match_id: match_id || '' }),
     giftsReceived: () => req<{ gifts: ReceivedGift[] }>('upload', 'gifts_received', 'GET'),
   },
   payment: {
-    create: (plan: string) => req<PaymentResult>('upload', 'pay_create', 'POST', { plan }),
+    create: (plan: string) => req<PaymentResult>('upload', 'pay_create', 'POST', { plan, return_url: window.location.href }),
     status: (payment_id: string) => req<{ status: string; plan?: string }>('upload', 'pay_status', 'GET', undefined, { payment_id }),
   },
   upload: {
