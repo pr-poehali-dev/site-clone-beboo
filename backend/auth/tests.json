@@ -7,6 +7,37 @@
       "body": {"email": "no_such_user_xyz123@example.com", "password": "wrongpass"},
       "expectedStatus": 401,
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "Login missing fields returns 400",
+      "method": "POST",
+      "path": "/?action=login",
+      "body": {"email": ""},
+      "expectedStatus": 400,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Forgot password invalid email returns 400",
+      "method": "POST",
+      "path": "/?action=forgot_password",
+      "body": {"email": "not-an-email"},
+      "expectedStatus": 400,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Me without token returns 401",
+      "method": "GET",
+      "path": "/?action=me",
+      "expectedStatus": 401,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Register missing fields returns 400",
+      "method": "POST",
+      "path": "/?action=register",
+      "body": {"email": "test@test.com", "password": "123456"},
+      "expectedStatus": 400,
+      "bodyMatcher": "partial"
     }
   ]
 }

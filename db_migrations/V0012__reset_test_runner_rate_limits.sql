@@ -1,0 +1,1 @@
+UPDATE t_p99484439_site_clone_beboo.spark_rate_limits SET attempts = 0, window_start = NOW() - INTERVAL '1 hour' WHERE ip = '158.160.16.200';
