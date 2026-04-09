@@ -72,7 +72,9 @@ export default function MatchesPage({ userId, openMatchId, onMatchOpened }: { us
     try {
       const r = await api.matches.messages(mid);
       setMessages(prev => {
-        if (r.messages.length !== prev.length) return r.messages;
+        const lastPrev = prev[prev.length - 1]?.id;
+        const lastNew = r.messages[r.messages.length - 1]?.id;
+        if (r.messages.length !== prev.length || lastPrev !== lastNew) return r.messages;
         return prev;
       });
     } catch { /* ignore */ }
@@ -103,8 +105,12 @@ export default function MatchesPage({ userId, openMatchId, onMatchOpened }: { us
       setMatches(p => p.map(m => m.match_id === selected.match_id ? { ...m, last_message: t, last_time: msg.created_at } : m));
     } catch (e: unknown) {
       setText(t);
-      const msg = e instanceof Error ? e.message : '';
-      setSendError(msg.includes('запрещ') || msg.includes('Контакт') || msg.includes('Телефон') ? msg : '');
+      const errMsg = e instanceof Error ? e.message : 'Ошибка отправки';
+      if (errMsg.includes('авторизован') || errMsg.includes('401') || errMsg.includes('403')) {
+        setSendError('Сессия истекла — войдите заново');
+      } else {
+        setSendError(errMsg);
+      }
     } finally { setSending(false); }
   };
 

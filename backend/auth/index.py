@@ -195,8 +195,8 @@ def handler(event: dict, context) -> dict:
             session_ttl = int(get_setting(cur, 'session_ttl_days', '30'))
             token_new = secrets.token_hex(32)
             cur.execute(
-                "INSERT INTO spark_sessions (user_id, token, expires_at) VALUES (%s, %s, NOW() + %s * INTERVAL '1 day')",
-                (user_id, token_new, session_ttl)
+                f"INSERT INTO spark_sessions (user_id, token, expires_at) VALUES (%s, %s, NOW() + INTERVAL '{session_ttl} days')",
+                (user_id, token_new)
             )
 
             # Бонус монет при регистрации
@@ -288,8 +288,8 @@ def handler(event: dict, context) -> dict:
             session_ttl = int(get_setting(cur, 'session_ttl_days', '30'))
             token_new = secrets.token_hex(32)
             cur.execute(
-                "INSERT INTO spark_sessions (user_id, token, expires_at) VALUES (%s, %s, NOW() + %s * INTERVAL '1 day')",
-                (user_id, token_new, session_ttl)
+                f"INSERT INTO spark_sessions (user_id, token, expires_at) VALUES (%s, %s, NOW() + INTERVAL '{session_ttl} days')",
+                (user_id, token_new)
             )
             cur.execute("UPDATE spark_profiles SET online_at = NOW() WHERE user_id = %s", (user_id,))
             reset_rate_limit(cur, client_ip, 'login')

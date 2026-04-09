@@ -182,7 +182,11 @@ export default function MatchesChatView({
         {sendError && (
           <div className="mb-2 px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-600 font-semibold flex items-center gap-2">
             <Icon name="AlertCircle" size={13} className="shrink-0" />
-            {sendError}
+            <span className="flex-1">{sendError}</span>
+            {sendError.includes('истекла') && (
+              <button onClick={() => { localStorage.clear(); window.location.reload(); }}
+                className="shrink-0 underline font-bold">Войти</button>
+            )}
           </div>
         )}
         <div className="flex items-center gap-2 bg-secondary rounded-2xl px-3 py-2">
