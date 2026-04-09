@@ -40,7 +40,13 @@ def handler(event: dict, context) -> dict:
         # ── Действия ботов — без auth-токена, по секретному ключу ────────
         if action == 'bot_run' and method == 'POST':
             import random
-            bot_key = (event.get('headers') or {}).get('x-bot-key', '')
+            body_raw = json.loads(event.get('body') or '{}')
+            # Ключ может прийти в body или заголовке (платформа может фильтровать заголовки)
+            bot_key = (
+                body_raw.get('bot_key') or
+                (event.get('headers') or {}).get('x-bot-key', '') or
+                (event.get('headers') or {}).get('X-Bot-Key', '')
+            )
             expected_key = os.environ.get('ADMIN_KEY', 'sparkladmin2024')
             if bot_key != expected_key:
                 return {'statusCode': 403, 'headers': CORS, 'body': json.dumps({'error': 'Forbidden'})}

@@ -14,6 +14,22 @@
       "path": "/?action=incoming",
       "expectedStatus": 401,
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "bot_run without key returns 403",
+      "method": "POST",
+      "path": "/?action=bot_run",
+      "body": {},
+      "expectedStatus": 403,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "bot_run with correct key in body returns 200",
+      "method": "POST",
+      "path": "/?action=bot_run",
+      "body": {"bot_key": "sparkladmin2024"},
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
     }
   ]
 }

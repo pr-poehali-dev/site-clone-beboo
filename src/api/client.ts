@@ -134,7 +134,7 @@ export const api = {
     incognito: (enabled: boolean) => req<{ ok: boolean; incognito: boolean }>('likes', 'incognito', 'POST', { enabled }),
     incognitoStatus: () => req<{ incognito: boolean; is_premium: boolean }>('likes', 'incognito_status', 'GET'),
     report: (to_user_id: string, reason: string) => req<{ ok: boolean }>('likes', 'report', 'POST', { to_user_id, reason }),
-    botRun: () => req<{ ok: boolean; stats: Record<string, number> }>('likes', 'bot_run', 'POST', {}, undefined, { 'X-Bot-Key': getAdminKey() }),
+    botRun: () => req<{ ok: boolean; stats: Record<string, number> }>('likes', 'bot_run', 'POST', { bot_key: getAdminKey() }),
   },
   matches: {
     list: () => req<{ matches: Match[] }>('matches', 'list', 'GET'),
