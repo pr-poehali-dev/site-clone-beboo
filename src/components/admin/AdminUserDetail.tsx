@@ -125,6 +125,44 @@ export function UserDetailCard({ userId, onClose, onRefresh }: { userId: string;
               </div>
             )}
 
+            {/* Selfie Verification */}
+            {detail.selfie_url && (
+              <div>
+                <SectionTitle>Верификация (селфи)</SectionTitle>
+                <div className="bg-secondary rounded-2xl p-3 space-y-3">
+                  <div className="flex gap-3 items-start">
+                    <img src={detail.selfie_url} className="w-20 h-20 rounded-xl object-cover shrink-0" alt="Selfie" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground mb-1">Статус:</p>
+                      <Badge variant={detail.selfie_status === 'approved' ? 'blue' : detail.selfie_status === 'rejected' ? 'red' : 'amber'}>
+                        {detail.selfie_status === 'approved' ? 'Одобрено' : detail.selfie_status === 'rejected' ? 'Отклонено' : 'На проверке'}
+                      </Badge>
+                    </div>
+                  </div>
+                  {detail.selfie_status !== 'approved' && (
+                    <div className="flex gap-2">
+                      <button disabled={actionLoading} onClick={() => doAction(() => api.admin.approveSelfie(detail.id, true))}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-2xl bg-emerald-500 text-white text-xs font-bold">
+                        <Icon name="CheckCircle" size={14} /> Одобрить
+                      </button>
+                      <button disabled={actionLoading} onClick={() => doAction(() => api.admin.approveSelfie(detail.id, false))}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-2xl bg-red-500 text-white text-xs font-bold">
+                        <Icon name="XCircle" size={14} /> Отклонить
+                      </button>
+                    </div>
+                  )}
+                  {detail.selfie_status === 'approved' && (
+                    <div className="flex gap-2">
+                      <button disabled={actionLoading} onClick={() => doAction(() => api.admin.approveSelfie(detail.id, false))}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-2xl bg-red-100 text-red-600 text-xs font-bold">
+                        <Icon name="XCircle" size={14} /> Отозвать верификацию
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Stats */}
             <div>
               <SectionTitle>Статистика</SectionTitle>

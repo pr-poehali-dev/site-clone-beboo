@@ -64,6 +64,8 @@ export default function ProfilePage({ user, onLogout, onRefresh }: ProfilePagePr
     bio: user.bio || '',
     city: user.city || 'Москва',
     job: user.job || '',
+    height: user.height || ('' as number | ''),
+    education: user.education || '',
     tags: user.tags || [] as string[],
     search_radius: user.search_radius || 25,
     search_age_min: user.search_age_min || 18,
@@ -165,6 +167,21 @@ export default function ProfilePage({ user, onLogout, onRefresh }: ProfilePagePr
                 <p className="text-xs text-muted-foreground">{form.job.length}/{JOB_MAX}</p>
               </div>
             </div>
+            <input
+              type="number"
+              value={form.height}
+              onChange={e => setForm(f => ({ ...f, height: e.target.value ? Number(e.target.value) : '' }))}
+              placeholder="Рост (см)"
+              min={100}
+              max={250}
+              className="w-full bg-secondary border border-border rounded-2xl px-4 py-2.5 text-sm outline-none focus:border-primary transition-colors"
+            />
+            <input
+              value={form.education}
+              onChange={e => setForm(f => ({ ...f, education: e.target.value }))}
+              placeholder="Образование (необязательно)"
+              className="w-full bg-secondary border border-border rounded-2xl px-4 py-2.5 text-sm outline-none focus:border-primary transition-colors"
+            />
             <div>
               <textarea
                 value={form.bio}

@@ -159,6 +159,17 @@ export const api = {
     block: (target_id: string) => req<{ ok: boolean }>('matches', 'block', 'POST', { target_id }),
     typingStatus: (match_id: string) => req<{ typing: boolean }>('matches', 'typing_status', 'GET', undefined, { match_id }),
   },
+  stories: {
+    feed: () => req<{ stories: Story[] }>('upload', 'story_feed', 'GET'),
+    create: (data: string, text?: string) => req<{ ok: boolean; story: Story }>('upload', 'story_create', 'POST', { data, text }),
+    view: (story_id: string) => req<{ ok: boolean }>('upload', 'story_view', 'POST', { story_id }),
+    my: () => req<{ stories: Story[] }>('upload', 'story_my', 'GET'),
+  },
+  notifications: {
+    list: () => req<{ notifications: AppNotification[] }>('upload', 'notifications', 'GET'),
+    count: () => req<{ count: number }>('upload', 'notifications_count', 'GET'),
+    markRead: () => req<{ ok: boolean }>('upload', 'notifications_read', 'POST'),
+  },
   wallet: {
     balance: () => req<{ balance: number; demo_topup_enabled: boolean; payment_enabled: boolean; payment_provider: string }>('upload', 'wallet_balance', 'GET'),
     history: () => req<{ transactions: WalletTx[] }>('upload', 'wallet_history', 'GET'),
@@ -239,6 +250,7 @@ export interface AdminUser {
 }
 export interface AdminUserDetail extends AdminUser {
   bio: string; photos: string[]; tags: string[]; job: string; height: number;
+  selfie_url?: string | null; selfie_status?: string | null;
   stats: { likes_sent: number; likes_received: number; matches: number; messages: number };
 }
 export interface AppSetting { key: string; value: string; description: string; }
@@ -285,4 +297,16 @@ export interface GiftItem {
 export interface ReceivedGift {
   id: string; from_user_id: string; name: string; emoji: string; price: number;
   message: string; created_at: string; sender_name: string; sender_photo: string;
+}
+
+export interface Story {
+  id: string; user_id: string; image_url: string; text: string;
+  created_at: string; expires_at: string;
+  user_name?: string; user_photo?: string;
+  view_count?: number; viewed?: boolean; is_mine?: boolean;
+}
+
+export interface AppNotification {
+  id: string; type: string; title: string; body: string;
+  data?: Record<string, unknown>; read: boolean; created_at: string;
 }

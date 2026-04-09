@@ -9,6 +9,8 @@ import AdminPage from './AdminPage';
 import FavoritesPage from './FavoritesPage';
 import ViewersPage from './ViewersPage';
 import WalletPage from './WalletPage';
+import NotificationsPage from './NotificationsPage';
+import { StoriesBar } from './StoriesPage';
 import PremiumModal from '@/components/profile/PremiumModal';
 import Icon from '@/components/ui/icon';
 import { api } from '@/api/client';
@@ -31,17 +33,21 @@ export default function Index() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
   const [openMatchId, setOpenMatchId] = useState<string | undefined>(undefined);
   const [walletRefreshKey, setWalletRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!auth.isAuthed) return;
-    const fetch = async () => {
+    const fetchData = async () => {
       try { const r = await api.matches.list(); setUnreadCount(r.matches.reduce((s, m) => s + m.unread, 0)); }
       catch { /* ignore */ }
+      try { const n = await api.notifications.count(); setNotifCount(n.count); }
+      catch { /* ignore */ }
     };
-    fetch();
-    const t = setInterval(fetch, 30000);
+    fetchData();
+    const t = setInterval(fetchData, 30000);
     return () => clearInterval(t);
   }, [auth.isAuthed]);
 
@@ -85,6 +91,16 @@ export default function Index() {
               <Icon name="Shield" size={15} className="text-rose-500" />
             </button>
           )}
+          <button onClick={() => { setShowNotifications(true); setNotifCount(0); }}
+            className="w-8 h-8 rounded-xl bg-secondary border border-border flex items-center justify-center hover:bg-secondary/80 transition-colors relative"
+            title="Уведомления">
+            <Icon name="Bell" size={15} className="text-foreground" />
+            {notifCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 rounded-full flex items-center justify-center text-white text-[9px] font-black gradient-brand">
+                {notifCount > 9 ? '9+' : notifCount}
+              </span>
+            )}
+          </button>
           {activeTab === 'discover' && (
             <button onClick={() => setActiveTab('profile')} className="w-9 h-9 rounded-full overflow-hidden border-2 border-border hover:border-primary transition-colors">
               <img src={avatarSrc} alt="" className="w-full h-full object-cover"
@@ -97,8 +113,15 @@ export default function Index() {
       {/* Pages */}
       <main className="flex-1 relative overflow-hidden">
         <div className={`absolute inset-0 ${activeTab !== 'discover' ? 'hidden' : ''}`}>
-          <div className="absolute inset-0 px-4 pb-2">
-            {auth.userId && <DiscoverPage onGoToMessages={(matchId) => { setOpenMatchId(matchId); setActiveTab('messages'); }} userId={auth.userId} />}
+          <div className="absolute inset-0 flex flex-col">
+            <div className="px-4 shrink-0">
+              <StoriesBar />
+            </div>
+            <div className="flex-1 relative min-h-0">
+              <div className="absolute inset-0 px-4 pb-2">
+                {auth.userId && <DiscoverPage onGoToMessages={(matchId) => { setOpenMatchId(matchId); setActiveTab('messages'); }} userId={auth.userId} />}
+              </div>
+            </div>
           </div>
         </div>
         <div className={`absolute inset-0 ${activeTab !== 'likes' ? 'hidden' : ''}`}>
@@ -154,6 +177,9 @@ export default function Index() {
 
       {/* Admin Panel Overlay */}
       {showAdmin && <AdminPage onClose={() => setShowAdmin(false)} />}
+
+      {/* Notifications Overlay */}
+      {showNotifications && <NotificationsPage onClose={() => setShowNotifications(false)} />}
 
       {/* Premium Modal (из ViewersPage и других мест) */}
       {showPremiumModal && (

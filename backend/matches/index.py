@@ -226,12 +226,27 @@ def handler(event: dict, context) -> dict:
                 return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Нет данных'})}
             if not check_match(cur, match_id, user_id):
                 return {'statusCode': 403, 'headers': CORS, 'body': json.dumps({'error': 'Нет доступа'})}
+            # Антиспам: макс 10 сообщений в минуту
+            cur.execute("SELECT COUNT(*) FROM spark_messages WHERE sender_id = %s AND created_at > NOW() - INTERVAL '1 minute'", (user_id,))
+            msg_rate = cur.fetchone()[0]
+            if msg_rate >= 10:
+                return {'statusCode': 429, 'headers': CORS, 'body': json.dumps({'error': 'Слишком много сообщений. Подождите немного.'})}
+
             violation = check_message(text)
             if violation:
                 return {'statusCode': 422, 'headers': CORS, 'body': json.dumps({'error': violation})}
             cur.execute("INSERT INTO spark_messages (match_id, sender_id, text, msg_type) VALUES (%s, %s, %s, 'text') RETURNING id, created_at", (match_id, user_id, text))
             row = cur.fetchone()
             cur.execute("UPDATE spark_profiles SET online_at = NOW() WHERE user_id = %s", (user_id,))
+            # Уведомление о новом сообщении
+            cur.execute("SELECT CASE WHEN user1_id = %s THEN user2_id ELSE user1_id END FROM spark_matches WHERE id = %s", (user_id, match_id))
+            other_row = cur.fetchone()
+            if other_row:
+                cur.execute("SELECT name FROM spark_profiles WHERE user_id = %s", (user_id,))
+                sender_name = (cur.fetchone() or ('',))[0]
+                preview = text[:50] + ('...' if len(text) > 50 else '')
+                cur.execute("INSERT INTO spark_notifications (user_id, type, title, body) VALUES (%s, 'message', %s, %s)",
+                    (other_row[0], f'Сообщение от {sender_name}', preview))
             conn.commit()
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps(msg_dict((row[0], user_id, text, None, 'text', False, row[1]), user_id))}
 

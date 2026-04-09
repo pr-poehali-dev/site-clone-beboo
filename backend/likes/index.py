@@ -163,6 +163,14 @@ def handler(event: dict, context) -> dict:
             p = cur.fetchone()
             photos = fix_photos(p[1]) if p else []
             profile_info = {'name': p[0], 'photo': (photos or [''])[0]} if p else {}
+            # Уведомление о новом мэтче
+            if is_match and match_id:
+                # Имя лайкнувшего пользователя
+                cur.execute("SELECT name FROM spark_profiles WHERE user_id = %s", (user_id,))
+                my_name_row = cur.fetchone()
+                my_name = my_name_row[0] if my_name_row else 'Кто-то'
+                cur.execute("INSERT INTO spark_notifications (user_id, type, title, body) VALUES (%s, 'match', 'Новый мэтч! 🎉', %s)", (to_id, f'У вас мэтч с {my_name}!'))
+                conn.commit()
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'is_match': is_match, 'match_id': match_id, 'profile': profile_info})}
 
         # ── Пропуск ─────────────────────────────────────────────────────

@@ -727,6 +727,104 @@ def handler(event: dict, context) -> dict:
                      'sender_name': r[7] or '?', 'sender_photo': ((r[8] or [''])[0]) if r[8] else ''} for r in rows
                 ]})}
 
+        # ════════════════════════════════════════════════════════
+        # STORIES 
+        # ════════════════════════════════════════════════════════
+        if action in ('story_create', 'story_feed', 'story_view', 'story_my'):
+            s_user = get_user_id(cur, token)
+            if not s_user:
+                return {'statusCode': 403, 'headers': CORS, 'body': json.dumps({'error': 'Не авторизован'})}
+
+            if action == 'story_create' and method == 'POST':
+                s_body = json.loads(event.get('body') or '{}')
+                data_url = s_body.get('data', '')
+                story_text = s_body.get('text', '')[:200]
+                if not data_url:
+                    return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Нет фото'})}
+                image_url = upload_image(data_url, 'stories')
+                hours = int(get_setting_val(cur, 'stories_duration_hours', '24'))
+                cur.execute(
+                    f"INSERT INTO spark_stories (user_id, image_url, text, expires_at) VALUES (%s, %s, %s, NOW() + INTERVAL '{hours} hours') RETURNING id, created_at, expires_at",
+                    (s_user, image_url, story_text or None)
+                )
+                row = cur.fetchone()
+                conn.commit()
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'story': {'id': str(row[0]), 'image_url': image_url, 'text': story_text, 'created_at': row[1].isoformat(), 'expires_at': row[2].isoformat()}})}
+
+            if action == 'story_feed':
+                cur.execute("""
+                    SELECT s.id, s.user_id, s.image_url, s.text, s.created_at, s.expires_at,
+                           p.name, p.photos,
+                           (SELECT COUNT(*) FROM spark_story_views WHERE story_id = s.id) as view_count,
+                           EXISTS(SELECT 1 FROM spark_story_views WHERE story_id = s.id AND viewer_id = %s) as viewed
+                    FROM spark_stories s
+                    JOIN spark_profiles p ON p.user_id = s.user_id
+                    WHERE s.expires_at > NOW()
+                    ORDER BY s.created_at DESC
+                    LIMIT 50
+                """, (s_user,))
+                rows = cur.fetchall()
+                stories = []
+                for r in rows:
+                    photos = r[7] or []
+                    avatar = ([url.replace('/files/spark/', '/bucket/spark/') for url in photos] or [''])[0]
+                    stories.append({
+                        'id': str(r[0]), 'user_id': str(r[1]), 'image_url': r[2], 'text': r[3] or '',
+                        'created_at': r[4].isoformat(), 'expires_at': r[5].isoformat(),
+                        'user_name': r[6], 'user_photo': avatar,
+                        'view_count': r[8], 'viewed': r[9], 'is_mine': str(r[1]) == str(s_user),
+                    })
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'stories': stories})}
+
+            if action == 'story_view' and method == 'POST':
+                s_body = json.loads(event.get('body') or '{}')
+                story_id = s_body.get('story_id', '')
+                if story_id:
+                    cur.execute("INSERT INTO spark_story_views (story_id, viewer_id) VALUES (%s, %s) ON CONFLICT DO NOTHING", (story_id, s_user))
+                    conn.commit()
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}
+
+            if action == 'story_my':
+                cur.execute("""
+                    SELECT s.id, s.image_url, s.text, s.created_at, s.expires_at,
+                           (SELECT COUNT(*) FROM spark_story_views WHERE story_id = s.id) as view_count
+                    FROM spark_stories s WHERE s.user_id = %s AND s.expires_at > NOW()
+                    ORDER BY s.created_at DESC
+                """, (s_user,))
+                rows = cur.fetchall()
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'stories': [
+                    {'id': str(r[0]), 'image_url': r[1], 'text': r[2] or '', 'created_at': r[3].isoformat(), 'expires_at': r[4].isoformat(), 'view_count': r[5]} for r in rows
+                ]})}
+
+        # ════════════════════════════════════════════════════════
+        # NOTIFICATIONS
+        # ════════════════════════════════════════════════════════
+        if action in ('notifications', 'notifications_read', 'notifications_count'):
+            n_user = get_user_id(cur, token)
+            if not n_user:
+                return {'statusCode': 403, 'headers': CORS, 'body': json.dumps({'error': 'Не авторизован'})}
+
+            if action == 'notifications':
+                cur.execute("""
+                    SELECT id, type, title, body, data, read, created_at
+                    FROM spark_notifications WHERE user_id = %s
+                    ORDER BY created_at DESC LIMIT 50
+                """, (n_user,))
+                rows = cur.fetchall()
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'notifications': [
+                    {'id': str(r[0]), 'type': r[1], 'title': r[2], 'body': r[3] or '', 'data': r[4], 'read': r[5], 'created_at': r[6].isoformat()} for r in rows
+                ]})}
+
+            if action == 'notifications_count':
+                cur.execute("SELECT COUNT(*) FROM spark_notifications WHERE user_id = %s AND read = FALSE", (n_user,))
+                count = cur.fetchone()[0]
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'count': count})}
+
+            if action == 'notifications_read' and method == 'POST':
+                cur.execute("UPDATE spark_notifications SET read = TRUE WHERE user_id = %s AND read = FALSE", (n_user,))
+                conn.commit()
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}
+
         return {'statusCode': 404, 'headers': CORS, 'body': json.dumps({'error': 'Unknown action'})}
 
     finally:

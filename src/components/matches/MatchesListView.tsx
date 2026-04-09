@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Match } from '@/api/client';
 import { timeAgo, avatarUrl } from './MatchesChatView';
 
@@ -8,6 +9,8 @@ interface ListViewProps {
 }
 
 export default function MatchesListView({ matches, loading, onSelect }: ListViewProps) {
+  const [search, setSearch] = useState('');
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -26,13 +29,25 @@ export default function MatchesListView({ matches, loading, onSelect }: ListView
     );
   }
 
-  const newMatches = matches.filter(m => !m.last_message);
-  const chats = matches.filter(m => m.last_message);
+  const searchLower = search.toLowerCase().trim();
+  const filtered = searchLower
+    ? matches.filter(m => m.name.toLowerCase().includes(searchLower))
+    : matches;
+
+  const newMatches = filtered.filter(m => !m.last_message);
+  const chats = filtered.filter(m => m.last_message);
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="p-4 space-y-5">
         <h2 className="text-xl font-black text-foreground">Сообщения</h2>
+
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Поиск по имени..."
+          className="w-full bg-secondary border border-border rounded-2xl px-4 py-2.5 text-sm outline-none focus:border-primary transition-colors"
+        />
 
         {newMatches.length > 0 && (
           <div>
