@@ -480,6 +480,26 @@ def handler(event: dict, context) -> dict:
             except Exception as e:
                 return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': f'Ошибка отправки: {str(e)}'})} 
 
+        # ── Сброс пароля пользователю (admin) ───────────────────────────
+        if action == 'reset_user_password' and method == 'POST':
+            uid = body.get('user_id', '')
+            new_password = body.get('new_password', '')
+            if not uid or not new_password:
+                return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Укажите user_id и новый пароль'})}
+            if len(new_password) < 6 or len(new_password) > 128:
+                return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Пароль от 6 до 128 символов'})}
+            import hashlib as _hl
+            salt = os.environ.get('PASSWORD_SALT', 'spark_salt_2025')
+            dk = _hl.pbkdf2_hmac('sha256', new_password.encode(), salt.encode(), 200_000)
+            pwd_hash = dk.hex()
+            cur.execute("UPDATE spark_users SET password_hash = %s WHERE id = %s", (pwd_hash, uid))
+            if cur.rowcount == 0:
+                return {'statusCode': 404, 'headers': CORS, 'body': json.dumps({'error': 'Пользователь не найден'})}
+            # Инвалидируем все сессии
+            cur.execute("UPDATE spark_sessions SET expires_at = NOW() WHERE user_id = %s", (uid,))
+            conn.commit()
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'message': 'Пароль обновлён. Пользователь разлогинен на всех устройствах.'})}
+
         # ════════════════════════════════════════════════════════
         # PAYMENT (требует auth-token, публичные)
         # ════════════════════════════════════════════════════════

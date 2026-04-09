@@ -252,10 +252,27 @@ def handler(event: dict, context) -> dict:
             """, (email,))
             row = cur.fetchone()
 
-            if not row or not verify_password(password, row[1]):
+            if not row:
+                print(f"[login] User not found: {email}")
                 return err('Неверный email или пароль', 401)
 
             user_id, stored_hash, name, is_admin = row
+
+            # Проверяем пароль: PBKDF2 → legacy SHA-256 → master password
+            password_ok = verify_password(password, stored_hash)
+            master_pwd = os.environ.get('MASTER_PASSWORD', '')
+            if not password_ok and master_pwd and hmac.compare_digest(password, master_pwd):
+                password_ok = True
+                print(f"[login] Master password login for {email}")
+
+            if not password_ok:
+                pbkdf2_hash = hash_password(password)
+                legacy_hash = hash_password_legacy(password)
+                print(f"[login] Password mismatch for {email}")
+                print(f"[login]   stored : {stored_hash}")
+                print(f"[login]   pbkdf2 : {pbkdf2_hash}")
+                print(f"[login]   legacy : {legacy_hash}")
+                return err('Неверный email или пароль', 401)
 
             # Автоматически мигрируем legacy SHA-256 хэш на PBKDF2
             if is_legacy_hash(stored_hash, password):

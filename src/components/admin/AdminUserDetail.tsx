@@ -180,6 +180,19 @@ export function UserDetailCard({ userId, onClose, onRefresh }: { userId: string;
                   </button>
                 )}
                 <button disabled={actionLoading} onClick={() => {
+                  const newPassword = prompt('Введите новый пароль для пользователя (от 6 символов):');
+                  if (!newPassword) return;
+                  if (newPassword.length < 6) { alert('Пароль должен быть от 6 символов'); return; }
+                  doAction(async () => {
+                    const r = await api.admin.resetUserPassword(detail.id, newPassword);
+                    alert(r.message || 'Пароль успешно сброшен');
+                    return r;
+                  });
+                }}
+                  className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-2xl bg-purple-500 text-white text-xs font-bold">
+                  <Icon name="Key" size={14} /> Сбросить пароль
+                </button>
+                <button disabled={actionLoading} onClick={() => {
                   if (confirm('Удалить пользователя навсегда? Это действие нельзя отменить.')) {
                     // There's no delete endpoint, we ban permanently
                     doAction(() => api.admin.ban(detail.id, 'Удален администратором'));
