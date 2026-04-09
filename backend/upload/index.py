@@ -439,6 +439,47 @@ def handler(event: dict, context) -> dict:
             conn.commit()
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'status': status})}
 
+        # ── Тестовое письмо (admin) ──────────────────────────────────────
+        if action == 'send_test_email' and method == 'POST':
+            to = body.get('to', '').strip()
+            if not to or '@' not in to:
+                return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Укажите корректный email'})}
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+            smtp_host = os.environ.get('SMTP_HOST') or get_setting_val(cur, 'smtp_host')
+            smtp_port = int(os.environ.get('SMTP_PORT') or get_setting_val(cur, 'smtp_port', '587'))
+            smtp_user = os.environ.get('SMTP_USER') or get_setting_val(cur, 'smtp_user')
+            smtp_pass = os.environ.get('SMTP_PASS') or get_setting_val(cur, 'smtp_pass')
+            smtp_from = os.environ.get('SMTP_FROM') or get_setting_val(cur, 'smtp_from', smtp_user or 'noreply@example.com')
+            if not smtp_host or not smtp_user or not smtp_pass:
+                return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'SMTP не настроен. Заполните smtp_host, smtp_user, smtp_pass'})}
+            try:
+                html = """
+                <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:24px">
+                  <h2 style="color:#e84393">✅ SMTP работает!</h2>
+                  <p style="color:#333">Это тестовое письмо от вашего приложения.<br>Email-рассылка настроена корректно.</p>
+                  <div style="background:#f9f9f9;border-radius:12px;padding:16px;margin-top:16px;font-size:13px;color:#666">
+                    <b>Сервер:</b> {host}:{port}<br>
+                    <b>Отправитель:</b> {sender}
+                  </div>
+                </div>
+                """.format(host=smtp_host, port=smtp_port, sender=smtp_from)
+                msg = MIMEMultipart('alternative')
+                msg['Subject'] = '✅ Тест SMTP — письмо дошло!'
+                msg['From'] = smtp_from
+                msg['To'] = to
+                msg.attach(MIMEText(html, 'html', 'utf-8'))
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as s:
+                    s.ehlo()
+                    s.starttls()
+                    s.ehlo()
+                    s.login(smtp_user, smtp_pass)
+                    s.sendmail(smtp_from, [to], msg.as_string())
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'message': f'Письмо успешно отправлено на {to}'})}
+            except Exception as e:
+                return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': f'Ошибка отправки: {str(e)}'})} 
+
         # ════════════════════════════════════════════════════════
         # PAYMENT (требует auth-token, публичные)
         # ════════════════════════════════════════════════════════

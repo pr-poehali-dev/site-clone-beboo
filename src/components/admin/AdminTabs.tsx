@@ -7,6 +7,7 @@ import { UserDetailCard } from './AdminUserDetail';
 export { DashboardTab, MonetizationTab, ReportsTab } from './AdminTabDashboard';
 export { SettingsTab, PaymentTab } from './AdminTabSettings';
 export { BotsTab } from './AdminTabBots';
+export { EmailTab } from './AdminTabEmail';
 
 /* ─── Users tab ────────────────────────────────────────────────────── */
 

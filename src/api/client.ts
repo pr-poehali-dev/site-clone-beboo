@@ -181,6 +181,7 @@ export const api = {
     readChat: (match_id: string) => adminReq<{ messages: AdminMessage[] }>('read_chat', 'GET', undefined, { match_id }),
     selfieRequests: () => adminReq<{ requests: SelfieRequest[] }>('selfie_requests'),
     approveSelfie: (user_id: string, approved: boolean) => adminReq<{ ok: boolean }>('approve_selfie', 'POST', { user_id, approved }),
+    sendTestEmail: (to: string) => adminReq<{ ok: boolean; message: string }>('send_test_email', 'POST', { to }),
   },
 };
 

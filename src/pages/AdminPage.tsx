@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { api, AdminStats } from '@/api/client';
 import Icon from '@/components/ui/icon';
-import { DashboardTab, UsersTab, MonetizationTab, ReportsTab, SettingsTab, PaymentTab, BotsTab } from '@/components/admin/AdminTabs';
+import { DashboardTab, UsersTab, MonetizationTab, ReportsTab, SettingsTab, PaymentTab, BotsTab, EmailTab } from '@/components/admin/AdminTabs';
 
-type AdminTab = 'dashboard' | 'users' | 'monetization' | 'reports' | 'settings' | 'payment' | 'bots';
+type AdminTab = 'dashboard' | 'users' | 'monetization' | 'reports' | 'settings' | 'payment' | 'bots' | 'email';
 
 export default function AdminPage({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<AdminTab>('dashboard');
@@ -23,6 +23,7 @@ export default function AdminPage({ onClose }: { onClose: () => void }) {
     { id: 'bots', icon: 'Bot', label: 'Боты & Награды' },
     { id: 'settings', icon: 'Settings', label: 'Настройки' },
     { id: 'payment', icon: 'Wallet', label: 'Оплата' },
+    { id: 'email', icon: 'Mail', label: 'Email / SMTP' },
   ];
 
   return (
@@ -65,6 +66,7 @@ export default function AdminPage({ onClose }: { onClose: () => void }) {
         {tab === 'bots' && <BotsTab />}
         {tab === 'settings' && <SettingsTab />}
         {tab === 'payment' && <PaymentTab />}
+        {tab === 'email' && <EmailTab />}
       </div>
     </div>
   );
