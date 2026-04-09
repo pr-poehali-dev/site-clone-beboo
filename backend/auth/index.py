@@ -337,7 +337,9 @@ def handler(event: dict, context) -> dict:
 
             # ── Ежедневная награда ────────────────────────────────────────
             daily_reward = None
-            if get_setting(cur, 'daily_reward_enabled', 'true') == 'true':
+            reward_enabled = get_setting(cur, 'daily_reward_enabled', 'true')
+            print(f"[me] user={user_id} daily_reward_enabled={reward_enabled}")
+            if reward_enabled == 'true':
                 import datetime as dt
                 today = dt.date.today()
                 cur.execute("""
@@ -345,14 +347,20 @@ def handler(event: dict, context) -> dict:
                     WHERE user_id = %s ORDER BY claimed_date DESC LIMIT 1
                 """, (user_id,))
                 last_row = cur.fetchone()
-                if not last_row or last_row[0] != today:
+                already_claimed = last_row and last_row[0] == today
+                print(f"[me] last_claim={last_row[0] if last_row else None} today={today} already_claimed={already_claimed}")
+                if not already_claimed:
                     cur.execute("""
                         SELECT COUNT(*) FROM spark_daily_rewards
                         WHERE user_id = %s AND claimed_date >= CURRENT_DATE - INTERVAL '6 days'
                     """, (user_id,))
                     streak = min((cur.fetchone()[0] or 0) + 1, 7)
                     coins_key = f'daily_reward_day{streak}'
-                    coins = int(get_setting(cur, coins_key, get_setting(cur, 'daily_reward_default', '10')))
+                    coins_str = get_setting(cur, coins_key, '')
+                    if not coins_str:
+                        coins_str = get_setting(cur, 'daily_reward_default', '10')
+                    coins = int(coins_str) if coins_str else 10
+                    print(f"[me] streak={streak} coins_key={coins_key} coins={coins}")
                     cur.execute("""
                         INSERT INTO spark_daily_rewards (user_id, day_number, coins, claimed_date)
                         VALUES (%s, %s, %s, CURRENT_DATE)
@@ -369,6 +377,9 @@ def handler(event: dict, context) -> dict:
                         """, (user_id, coins, f'Ежедневная награда — день {streak} 🎁'))
                         conn.commit()
                         daily_reward = {'coins': coins, 'day': streak, 'is_new': True}
+                        print(f"[me] daily_reward GRANTED: {daily_reward}")
+                    else:
+                        print(f"[me] daily_reward INSERT conflict — already claimed today")
 
             return ok({
                 'user_id': str(user_id), 'name': p[0], 'age': p[1], 'gender': p[2], 'city': p[3],

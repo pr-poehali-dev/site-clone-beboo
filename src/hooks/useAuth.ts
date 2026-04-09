@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api, UserProfile } from '@/api/client';
 
 export interface DailyReward { coins: number; day: number; is_new: boolean; }
@@ -25,19 +25,24 @@ export function useAuth(): AuthState {
   const [token, setToken] = useState<string | null>(null);
   const [dailyReward, setDailyReward] = useState<DailyReward | null>(null);
 
+  // Единая функция получения профиля — проверяет daily_reward
+  const fetchMe = useCallback(async (): Promise<UserProfile> => {
+    const u = await api.auth.me();
+    setUser(u);
+    if (u.daily_reward?.is_new) {
+      setDailyReward(u.daily_reward);
+    }
+    return u;
+  }, []);
+
+  // При загрузке приложения
   useEffect(() => {
     const savedToken = localStorage.getItem('spark_token');
     const savedUserId = localStorage.getItem('spark_user_id');
     if (savedToken && savedUserId) {
       setToken(savedToken);
       setUserId(savedUserId);
-      api.auth.me()
-        .then(u => {
-          setUser(u);
-          if (u.daily_reward?.is_new) {
-            setDailyReward(u.daily_reward);
-          }
-        })
+      fetchMe()
         .catch(() => {
           localStorage.removeItem('spark_token');
           localStorage.removeItem('spark_user_id');
@@ -48,7 +53,7 @@ export function useAuth(): AuthState {
     } else {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchMe]);
 
   const login = async (email: string, password: string) => {
     const res = await api.auth.login(email, password);
@@ -56,8 +61,7 @@ export function useAuth(): AuthState {
     localStorage.setItem('spark_user_id', res.user_id);
     setToken(res.token);
     setUserId(res.user_id);
-    const profile = await api.auth.me();
-    setUser(profile);
+    await fetchMe(); // <-- теперь daily_reward устанавливается после login
   };
 
   const register = async (email: string, password: string, name: string, age: number, gender: string) => {
@@ -66,8 +70,7 @@ export function useAuth(): AuthState {
     localStorage.setItem('spark_user_id', res.user_id);
     setToken(res.token);
     setUserId(res.user_id);
-    const profile = await api.auth.me();
-    setUser(profile);
+    await fetchMe(); // <-- и после register
   };
 
   const logout = () => {
@@ -77,11 +80,11 @@ export function useAuth(): AuthState {
     setToken(null);
     setUserId(null);
     setUser(null);
+    setDailyReward(null);
   };
 
   const refreshUser = async () => {
-    const profile = await api.profiles.my();
-    setUser(profile as UserProfile);
+    await fetchMe();
   };
 
   return {

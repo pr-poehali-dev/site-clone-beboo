@@ -629,7 +629,9 @@ def handler(event: dict, context) -> dict:
 
             if action == 'wallet_topup' and method == 'POST':
                 # Проверяем что демо-пополнение разрешено
-                demo_enabled = get_setting_val(cur, 'demo_topup_enabled', 'true') == 'true'
+                demo_setting = get_setting_val(cur, 'demo_topup_enabled', 'true')
+                demo_enabled = demo_setting == 'true'
+                print(f"[wallet_topup] user={w_user} demo_topup_enabled={demo_setting} demo_enabled={demo_enabled}")
                 if not demo_enabled:
                     return {'statusCode': 403, 'headers': CORS, 'body': json.dumps({'error': 'Демо-пополнение отключено. Используйте оплату.'})}
                 w_body = json.loads(event.get('body') or '{}')
@@ -641,6 +643,7 @@ def handler(event: dict, context) -> dict:
                 cur.execute("SELECT balance FROM spark_wallets WHERE user_id = %s", (w_user,))
                 balance = cur.fetchone()[0]
                 conn.commit()
+                print(f"[wallet_topup] SUCCESS user={w_user} added={coins} new_balance={balance}")
                 return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True, 'balance': balance})}
 
             if action == 'gift_catalog':
