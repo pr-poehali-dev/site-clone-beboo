@@ -194,7 +194,6 @@ export default function AuthPage({ onLogin, onRegister }: AuthPageProps) {
       try {
         const r = await api.auth.forgotPassword(email);
         setSuccess(r.message || 'Письмо отправлено!');
-        if (r.dev_token) setSuccess(`DEV: используй токен ${r.dev_token} для сброса пароля`);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Ошибка');
       } finally { setLoading(false); }

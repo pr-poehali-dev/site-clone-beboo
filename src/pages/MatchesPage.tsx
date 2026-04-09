@@ -16,6 +16,7 @@ export default function MatchesPage({ userId, openMatchId, onMatchOpened }: { us
   const [showProfile, setShowProfile] = useState(false);
   const [favoritedUsers, setFavoritedUsers] = useState<Set<string>>(new Set());
   const [isTyping, setIsTyping] = useState(false);
+  const [otherTyping, setOtherTyping] = useState(false);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showGifts, setShowGifts] = useState(false);
   const [showReport, setShowReport] = useState(false);
@@ -40,12 +41,17 @@ export default function MatchesPage({ userId, openMatchId, onMatchOpened }: { us
 
   useEffect(() => {
     if (pollRef.current) clearInterval(pollRef.current);
-    if (!selected) return;
+    if (!selected) { setOtherTyping(false); return; }
     setShowProfile(false);
+    setOtherTyping(false);
     loadMessages(selected.match_id);
     pollRef.current = setInterval(() => {
-      if (!document.hidden) loadMessagesQuiet(selected.match_id);
-    }, 6000);
+      if (document.hidden) return;
+      loadMessagesQuiet(selected.match_id);
+      api.matches.typingStatus(selected.match_id)
+        .then(r => setOtherTyping(r.typing))
+        .catch(() => setOtherTyping(false));
+    }, 4000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [selected?.match_id]);
 
@@ -143,6 +149,30 @@ export default function MatchesPage({ userId, openMatchId, onMatchOpened }: { us
     e.target.value = '';
   };
 
+  const handleUnmatch = async () => {
+    if (!selected) return;
+    try {
+      await api.matches.unmatch(selected.match_id);
+      setMatches(p => p.filter(m => m.match_id !== selected.match_id));
+      setSelected(null);
+      setMessages([]);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Ошибка');
+    }
+  };
+
+  const handleBlock = async () => {
+    if (!selected) return;
+    try {
+      await api.matches.block(selected.other_user_id);
+      setMatches(p => p.filter(m => m.match_id !== selected.match_id));
+      setSelected(null);
+      setMessages([]);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Ошибка');
+    }
+  };
+
   if (selected) {
     return (
       <MatchesChatView
@@ -158,6 +188,7 @@ export default function MatchesPage({ userId, openMatchId, onMatchOpened }: { us
         showReport={showReport}
         showGifts={showGifts}
         favoritedUsers={favoritedUsers}
+        isTyping={otherTyping}
         bottomRef={bottomRef}
         onBack={() => { setSelected(null); setMessages([]); }}
         onSetText={setText}
@@ -170,6 +201,8 @@ export default function MatchesPage({ userId, openMatchId, onMatchOpened }: { us
         onSetShowProfile={setShowProfile}
         onSetShowGifts={setShowGifts}
         onSetShowReport={setShowReport}
+        onUnmatch={handleUnmatch}
+        onBlock={handleBlock}
       />
     );
   }

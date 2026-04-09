@@ -118,7 +118,7 @@ export const api = {
     me: () => req<UserProfile & { daily_reward?: { coins: number; day: number; is_new: boolean } | null }>('auth', 'me', 'GET'),
     logout: () => req<{ ok: boolean }>('auth', 'logout', 'POST'),
     forgotPassword: (email: string) =>
-      req<{ ok: boolean; message: string; dev_token?: string }>('auth', 'forgot_password', 'POST', { email }),
+      req<{ ok: boolean; message: string }>('auth', 'forgot_password', 'POST', { email }),
     resetPassword: (token: string, password: string) =>
       req<{ ok: boolean; message: string }>('auth', 'reset_password', 'POST', { token, password }),
     changePassword: (old_password: string, new_password: string) =>
@@ -155,6 +155,9 @@ export const api = {
     sendImage: (match_id: string, data: string) => req<Message>('matches', 'send_image', 'POST', { match_id, data }),
     typing: (match_id: string) => req<{ ok: boolean }>('matches', 'typing', 'POST', { match_id }),
     ping: () => req<{ ok: boolean }>('matches', 'ping', 'POST'),
+    unmatch: (match_id: string) => req<{ ok: boolean }>('matches', 'unmatch', 'POST', { match_id }),
+    block: (target_id: string) => req<{ ok: boolean }>('matches', 'block', 'POST', { target_id }),
+    typingStatus: (match_id: string) => req<{ typing: boolean }>('matches', 'typing_status', 'GET', undefined, { match_id }),
   },
   wallet: {
     balance: () => req<{ balance: number; demo_topup_enabled: boolean; payment_enabled: boolean; payment_provider: string }>('upload', 'wallet_balance', 'GET'),

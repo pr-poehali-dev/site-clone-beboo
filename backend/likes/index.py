@@ -129,6 +129,17 @@ def handler(event: dict, context) -> dict:
             is_super = body.get('is_super', False)
             if not to_id:
                 return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Нет to_user_id'})}
+            # Лимит лайков для обычных пользователей
+            cur.execute("SELECT is_premium FROM spark_profiles WHERE user_id = %s", (user_id,))
+            prem = cur.fetchone()
+            if not prem or not prem[0]:
+                cur.execute("SELECT value FROM spark_settings WHERE key = 'free_likes_per_day'")
+                limit_row = cur.fetchone()
+                daily_limit = int(limit_row[0]) if limit_row else 20
+                cur.execute("SELECT COUNT(*) FROM spark_likes WHERE from_user_id = %s AND created_at > CURRENT_DATE", (user_id,))
+                today_count = cur.fetchone()[0]
+                if today_count >= daily_limit:
+                    return {'statusCode': 429, 'headers': CORS, 'body': json.dumps({'error': f'Лимит лайков на сегодня исчерпан ({daily_limit}). Получите Premium для безлимитных лайков!', 'limit': daily_limit, 'used': today_count})}
             cur.execute("INSERT INTO spark_likes (from_user_id, to_user_id, is_super) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING", (user_id, to_id, is_super))
             cur.execute("SELECT id FROM spark_likes WHERE from_user_id = %s AND to_user_id = %s", (to_id, user_id))
             mutual = cur.fetchone()

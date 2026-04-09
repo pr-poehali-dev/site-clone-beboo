@@ -443,7 +443,7 @@ def handler(event: dict, context) -> dict:
                 conn.commit()
                 if not email_sent:
                     # SMTP не настроен — возвращаем токен для dev/тестов
-                    return ok({'ok': True, 'dev_token': reset_token, 'message': 'Email не настроен. Используйте dev_token для тестирования.'})
+                    return ok({'ok': True, 'message': 'Email не настроен. Обратитесь к администратору для настройки SMTP.'})
 
             conn.commit()
             return ok({'ok': True, 'message': 'Если email зарегистрирован — вам придёт письмо со ссылкой'})

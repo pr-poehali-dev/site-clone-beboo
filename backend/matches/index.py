@@ -71,6 +71,18 @@ def handler(event: dict, context) -> dict:
     cur = conn.cursor()
 
     try:
+        # Ensure spark_blocks table exists
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS spark_blocks (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                blocker_id UUID NOT NULL,
+                blocked_id UUID NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE(blocker_id, blocked_id)
+            )
+        """)
+        conn.commit()
+
         user_id = get_user_id(cur, token)
         if not user_id:
             return {'statusCode': 401, 'headers': CORS, 'body': json.dumps({'error': 'Не авторизован'})}
@@ -157,6 +169,54 @@ def handler(event: dict, context) -> dict:
             cur.execute("UPDATE spark_profiles SET online_at = NOW() WHERE user_id = %s", (user_id,))
             conn.commit()
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}
+
+        # ── Unmatch (удалить мэтч) ─────────────────────────────────────────
+        if action == 'unmatch' and method == 'POST':
+            body = json.loads(event.get('body') or '{}')
+            match_id = body.get('match_id', '')
+            if not check_match(cur, match_id, user_id):
+                return {'statusCode': 403, 'headers': CORS, 'body': json.dumps({'error': 'Нет доступа'})}
+            cur.execute("DELETE FROM spark_messages WHERE match_id = %s", (match_id,))
+            cur.execute("DELETE FROM spark_matches WHERE id = %s", (match_id,))
+            conn.commit()
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}
+
+        # ── Блокировка пользователя ────────────────────────────────────────
+        if action == 'block' and method == 'POST':
+            body = json.loads(event.get('body') or '{}')
+            target_id = body.get('target_id', '')
+            if not target_id:
+                return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Нет target_id'})}
+            cur.execute("INSERT INTO spark_blocks (blocker_id, blocked_id) VALUES (%s, %s) ON CONFLICT DO NOTHING", (user_id, target_id))
+            # Удаляем все мэтчи между ними
+            u1, u2 = sorted([str(user_id), str(target_id)])
+            cur.execute("SELECT id FROM spark_matches WHERE user1_id = %s AND user2_id = %s", (u1, u2))
+            match_row = cur.fetchone()
+            if match_row:
+                cur.execute("DELETE FROM spark_messages WHERE match_id = %s", (match_row[0],))
+                cur.execute("DELETE FROM spark_matches WHERE id = %s", (match_row[0],))
+            conn.commit()
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}
+
+        # ── Typing status check ────────────────────────────────────────────
+        if action == 'typing_status':
+            match_id = params.get('match_id', '')
+            if not check_match(cur, match_id, user_id):
+                return {'statusCode': 403, 'headers': CORS, 'body': json.dumps({'error': 'Нет доступа'})}
+            cur.execute("""
+                SELECT p.user_id, p.online_at FROM spark_matches m
+                JOIN spark_profiles p ON p.user_id = (
+                    CASE WHEN m.user1_id = %s THEN m.user2_id ELSE m.user1_id END
+                )
+                WHERE m.id = %s
+            """, (user_id, match_id))
+            row = cur.fetchone()
+            typing = False
+            if row and row[1]:
+                from datetime import datetime, timezone
+                delta = (datetime.now(timezone.utc) - row[1].replace(tzinfo=timezone.utc)).total_seconds()
+                typing = delta < 5
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'typing': typing})}
 
         if action == 'send' and method == 'POST':
             body = json.loads(event.get('body') or '{}')

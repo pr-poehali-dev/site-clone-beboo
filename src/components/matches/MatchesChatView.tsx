@@ -28,6 +28,7 @@ interface ChatViewProps {
   showReport: boolean;
   showGifts: boolean;
   favoritedUsers: Set<string>;
+  isTyping?: boolean;
   bottomRef: React.RefObject<HTMLDivElement>;
   onBack: () => void;
   onSetText: (val: string) => void;
@@ -40,14 +41,17 @@ interface ChatViewProps {
   onSetShowProfile: (val: boolean) => void;
   onSetShowGifts: (val: boolean) => void;
   onSetShowReport: (val: boolean) => void;
+  onUnmatch?: () => void;
+  onBlock?: () => void;
 }
 
 export default function MatchesChatView({
   selected, userId, messages, msgLoading, text, sending, sendError,
   imagePreview, showProfile, showReport, showGifts, favoritedUsers,
-  bottomRef, onBack, onSetText, onHandleTyping, onSend, onSendImage,
+  isTyping, bottomRef, onBack, onSetText, onHandleTyping, onSend, onSendImage,
   onFileChange, onSetImagePreview, onToggleFavorite,
   onSetShowProfile, onSetShowGifts, onSetShowReport,
+  onUnmatch, onBlock,
 }: ChatViewProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const avatar = avatarUrl(selected);
@@ -88,6 +92,13 @@ export default function MatchesChatView({
           <button onClick={() => onSetShowReport(true)}
             className="w-9 h-9 rounded-full hover:bg-secondary flex items-center justify-center transition-colors">
             <Icon name="Flag" size={15} className="text-rose-400" />
+          </button>
+          <button onClick={() => {
+            if (!confirm('Удалить мэтч и переписку? Это действие нельзя отменить.')) return;
+            if (onBlock) { onBlock(); } else if (onUnmatch) { onUnmatch(); }
+          }}
+            className="w-9 h-9 rounded-full hover:bg-secondary flex items-center justify-center transition-colors">
+            <Icon name="UserX" size={15} className="text-muted-foreground" />
           </button>
         </div>
       </div>
@@ -149,11 +160,33 @@ export default function MatchesChatView({
                         {msg.text}
                       </div>
                     )}
-                    <span className="text-[10px] text-muted-foreground px-1">{timeAgo(msg.created_at)}</span>
+                    <span className="text-[10px] text-muted-foreground px-1 flex items-center gap-1">
+                      {timeAgo(msg.created_at)}
+                      {mine && (
+                        msg.read
+                          ? <Icon name="CheckCheck" size={11} className="text-blue-500" />
+                          : <Icon name="Check" size={11} className="text-muted-foreground" />
+                      )}
+                    </span>
                   </div>
                 </div>
               );
             })}
+            {isTyping && (
+              <div className="flex items-end gap-2 justify-start">
+                <div className="w-7 shrink-0">
+                  <img src={avatar} alt="" className="w-7 h-7 rounded-full object-cover bg-secondary"
+                    onError={e => { (e.target as HTMLImageElement).src = fallbackSrc; }} />
+                </div>
+                <div className="bg-secondary rounded-2xl rounded-bl-sm px-4 py-2.5">
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              </div>
+            )}
             <div ref={bottomRef} />
           </>
         )}
