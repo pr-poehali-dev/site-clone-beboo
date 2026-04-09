@@ -31,7 +31,7 @@ function txMeta(type: string) {
   return { icon: 'Minus', color: 'text-gray-500', bg: 'bg-gray-50' };
 }
 
-export default function WalletPage() {
+export default function WalletPage({ refreshKey = 0 }: { refreshKey?: number }) {
   const [balance, setBalance]             = useState(0);
   const [demoEnabled, setDemoEnabled]     = useState(true);
   const [paymentEnabled, setPaymentEnabled] = useState(false);
@@ -61,7 +61,7 @@ export default function WalletPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   // Проверяем статус оплаты при возврате на страницу
   useEffect(() => {

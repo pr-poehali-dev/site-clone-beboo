@@ -114,7 +114,16 @@ def handler(event: dict, context) -> dict:
     params = event.get('queryStringParameters') or {}
     action = params.get('action', '')
     method = event.get('httpMethod', 'GET')
-    token = (event.get('headers') or {}).get('x-auth-token') or (event.get('headers') or {}).get('X-Auth-Token', '')
+    headers = event.get('headers') or {}
+    # Токен: сначала из query string (_t), потом из заголовков (платформа может фильтровать)
+    token = (
+        params.get('_t') or
+        headers.get('x-auth-token') or
+        headers.get('X-Auth-Token') or
+        headers.get('x-authorization') or
+        headers.get('X-Authorization', '')
+    )
+    print(f"[upload] action={action} token_src={'qs' if params.get('_t') else 'header'} token_len={len(token)}")
 
     conn = get_db()
     cur = conn.cursor()
@@ -590,7 +599,9 @@ def handler(event: dict, context) -> dict:
         # WALLET (кошелёк — требует auth-token)
         # ════════════════════════════════════════════════════════
         if action in ('wallet_balance', 'wallet_topup', 'wallet_history', 'gift_catalog', 'gift_send', 'gifts_received', 'wallet_settings'):
+            print(f"[wallet] action={action} token_len={len(token)} token_prefix={token[:8] if token else 'EMPTY'}")
             w_user = get_user_id(cur, token)
+            print(f"[wallet] w_user={w_user}")
             if not w_user:
                 return {'statusCode': 403, 'headers': CORS, 'body': json.dumps({'error': 'Не авторизован'})}
 

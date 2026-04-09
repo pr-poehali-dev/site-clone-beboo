@@ -32,6 +32,7 @@ export default function Index() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [openMatchId, setOpenMatchId] = useState<string | undefined>(undefined);
+  const [walletRefreshKey, setWalletRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!auth.isAuthed) return;
@@ -113,7 +114,7 @@ export default function Index() {
           />
         </div>
         <div className={`absolute inset-0 ${activeTab !== 'wallet' ? 'hidden' : ''}`}>
-          <WalletPage />
+          <WalletPage refreshKey={walletRefreshKey} />
         </div>
         <div className={`absolute inset-0 ${activeTab !== 'messages' ? 'hidden' : ''}`}>
           {auth.userId && <MatchesPage userId={auth.userId} openMatchId={openMatchId} onMatchOpened={() => setOpenMatchId(undefined)} />}
@@ -185,7 +186,7 @@ export default function Index() {
                 </div>
               ))}
             </div>
-            <button onClick={auth.clearDailyReward}
+            <button onClick={() => { auth.clearDailyReward(); setWalletRefreshKey(k => k + 1); }}
               className="w-full py-3.5 rounded-2xl btn-primary text-white font-bold">
               Забрать!
             </button>

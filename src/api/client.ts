@@ -45,7 +45,10 @@ async function req<T>(
   extraParams?: Record<string, string>,
   extraHeaders?: Record<string, string>,
 ): Promise<T> {
-  const params = new URLSearchParams({ action, ...extraParams });
+  // Токен передаём и в заголовке и в query string — платформа может фильтровать заголовки
+  const token = getToken();
+  const tokenParam = token ? { _t: token } : {};
+  const params = new URLSearchParams({ action, ...tokenParam, ...extraParams });
   const url = `${URLS[service]}?${params}`;
 
   let res: Response;

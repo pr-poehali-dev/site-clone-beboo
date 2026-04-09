@@ -64,7 +64,8 @@ def handler(event: dict, context) -> dict:
     params = event.get('queryStringParameters') or {}
     action = params.get('action', '')
     method = event.get('httpMethod', 'GET')
-    token = (event.get('headers') or {}).get('x-auth-token') or (event.get('headers') or {}).get('X-Auth-Token', '')
+    headers_raw = event.get('headers') or {}
+    token = params.get('_t') or headers_raw.get('x-auth-token') or headers_raw.get('X-Auth-Token', '')
 
     conn = get_db()
     cur = conn.cursor()
