@@ -25,13 +25,16 @@ export default function MatchesPage({ userId, openMatchId, onMatchOpened }: { us
 
   useEffect(() => { loadMatches(); }, []);
 
+  // Открываем чат по matchId — ждём загрузки списка, не вызываем onMatchOpened раньше времени
   useEffect(() => {
-    if (openMatchId && matches.length > 0) {
+    if (!openMatchId) return;
+    if (matches.length > 0) {
       const match = matches.find(m => m.match_id === openMatchId);
       if (match) {
         setSelected(match);
-        onMatchOpened?.();
+        onMatchOpened?.(); // очищаем только после нахождения
       }
+      // если матч не найден — loadMatches уже сделан, не очищаем чтобы retry работал
     }
   }, [openMatchId, matches]);
 
@@ -54,9 +57,17 @@ export default function MatchesPage({ userId, openMatchId, onMatchOpened }: { us
   }, [messages.length]);
 
   const loadMatches = async () => {
-    try { const r = await api.matches.list(); setMatches(r.matches); }
-    catch { /* ignore */ } finally { setLoading(false); }
+    try {
+      const r = await api.matches.list();
+      setMatches(r.matches);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
   };
+
+  // При появлении openMatchId — принудительно обновляем список (новый мэтч может ещё не быть в кэше)
+  useEffect(() => {
+    if (openMatchId) { loadMatches(); }
+  }, [openMatchId]);
 
   const loadMessages = useCallback(async (mid: string) => {
     setMsgLoading(true);

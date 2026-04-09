@@ -137,14 +137,16 @@ export function GiftModal({ toUserId, toName, matchId, onClose }: { toUserId: st
 
   const send = async () => {
     if (!selected) return;
+    const giftName = selected.name;
+    const giftEmoji = selected.emoji;
     setSending(true);
     try {
       const r = await api.wallet.sendGift(toUserId, selected.id, message, matchId);
       setBalance(r.balance);
-      alert(`Подарок ${selected.emoji} ${selected.name} отправлен!`);
+      alert(r.message || `Подарок ${giftEmoji} ${giftName} отправлен!`);
       onClose();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Ошибка');
+      alert(e instanceof Error ? e.message : 'Ошибка отправки подарка');
     } finally { setSending(false); }
   };
 

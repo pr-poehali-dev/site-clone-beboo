@@ -13,6 +13,7 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
   const [deck, setDeck] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [matchData, setMatchData] = useState<{ name: string; photo: string; matchId: string } | null>(null);
+  const [myPhoto, setMyPhoto] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [boosting, setBoosting] = useState(false);
   const [undoing, setUndoing] = useState(false);
@@ -22,7 +23,10 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
   useEffect(() => {
     void userId;
     loadProfiles();
-    api.profiles.my().then(p => setIsPremium(!!p.is_premium)).catch(() => {});
+    api.profiles.my().then(p => {
+      setIsPremium(!!p.is_premium);
+      if (p.photos && p.photos.length > 0) setMyPhoto(p.photos[0]);
+    }).catch(() => {});
   }, [userId]);
 
   const loadProfiles = async () => {
@@ -46,7 +50,10 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
     try {
       const res = await api.likes.like(top.user_id, false);
       if (res.is_match && res.match_id) {
-        setMatchData({ ...res.profile, matchId: res.match_id });
+        // Используем данные из профиля в колоде как запасной вариант
+        const name = res.profile?.name || top.name || '';
+        const photo = res.profile?.photo || (top.photos && top.photos[0]) || '';
+        setMatchData({ name, photo, matchId: res.match_id });
       }
     } catch { /* ignore */ }
   }, [deck]);
@@ -69,7 +76,9 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
     try {
       const res = await api.likes.like(top.user_id, true);
       if (res.is_match && res.match_id) {
-        setMatchData({ ...res.profile, matchId: res.match_id });
+        const name = res.profile?.name || top.name || '';
+        const photo = res.profile?.photo || (top.photos && top.photos[0]) || '';
+        setMatchData({ name, photo, matchId: res.match_id });
       }
     } catch { /* ignore */ }
   }, [deck]);
@@ -225,8 +234,13 @@ export default function DiscoverPage({ onGoToMessages, userId }: DiscoverPagePro
         <MatchModal
           profileName={matchData.name}
           profilePhoto={matchData.photo}
+          myPhoto={myPhoto}
           onClose={() => setMatchData(null)}
-          onMessage={() => { setMatchData(null); onGoToMessages(matchData.matchId); }}
+          onMessage={() => {
+            const mid = matchData.matchId;
+            setMatchData(null);
+            onGoToMessages(mid);
+          }}
         />
       )}
     </div>

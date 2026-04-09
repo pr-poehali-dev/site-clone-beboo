@@ -115,15 +115,10 @@ def handler(event: dict, context) -> dict:
     action = params.get('action', '')
     method = event.get('httpMethod', 'GET')
     headers = event.get('headers') or {}
-    # Токен: сначала из query string (_t), потом из заголовков (платформа может фильтровать)
-    token = (
-        params.get('_t') or
-        headers.get('x-auth-token') or
-        headers.get('X-Auth-Token') or
-        headers.get('x-authorization') or
-        headers.get('X-Authorization', '')
-    )
-    print(f"[upload] action={action} token_src={'qs' if params.get('_t') else 'header'} token_len={len(token)}")
+    # Токен: сначала из query string (_t), потом из заголовков (платформа фильтрует X-Auth-Token)
+    _t = params.get('_t', '')
+    token = _t or headers.get('x-auth-token', '') or headers.get('X-Auth-Token', '') or headers.get('x-authorization', '') or headers.get('X-Authorization', '')
+    print(f"[upload] v3 action={action} token_src={'qs' if _t else 'hdr'} token_len={len(token)}")
 
     conn = get_db()
     cur = conn.cursor()

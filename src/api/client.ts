@@ -91,6 +91,15 @@ async function req<T>(
 
   if (!res.ok) {
     const errMsg = (data as Record<string, string>)?.error || `Ошибка ${res.status}`;
+    // При 401/403 — сессия истекла, очищаем токен
+    if (res.status === 401 || res.status === 403) {
+      const token = getToken();
+      if (token && errMsg.includes('авторизован')) {
+        localStorage.removeItem('spark_token');
+        localStorage.removeItem('spark_user_id');
+        window.location.reload();
+      }
+    }
     throw new Error(errMsg);
   }
   return data as T;

@@ -1,13 +1,17 @@
 interface MatchModalProps {
   profileName: string;
   profilePhoto: string;
+  myPhoto?: string;
   onClose: () => void;
   onMessage: () => void;
 }
 
-const myPhoto = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Me&backgroundColor=fde68a';
+const FALLBACK = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Me&backgroundColor=fde68a';
 
-export default function MatchModal({ profileName, profilePhoto, onClose, onMessage }: MatchModalProps) {
+export default function MatchModal({ profileName, profilePhoto, myPhoto, onClose, onMessage }: MatchModalProps) {
+  const myAvatar = myPhoto || FALLBACK;
+  const theirAvatar = profilePhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(profileName)}`;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
@@ -24,14 +28,13 @@ export default function MatchModal({ profileName, profilePhoto, onClose, onMessa
           <p className="text-white/80 text-sm mb-8">Вы понравились друг другу</p>
 
           <div className="flex items-center justify-center gap-4 mb-8">
-            <img src={myPhoto} alt="Вы" className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-xl" />
-            <div className="text-white text-3xl font-black">💫</div>
-            <img
-              src={profilePhoto || myPhoto}
-              alt={profileName}
+            <img src={myAvatar} alt="Вы"
               className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-xl"
-              onError={(e) => { (e.target as HTMLImageElement).src = myPhoto; }}
-            />
+              onError={e => { (e.target as HTMLImageElement).src = FALLBACK; }} />
+            <div className="text-white text-3xl font-black">💫</div>
+            <img src={theirAvatar} alt={profileName || '?'}
+              className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-xl"
+              onError={e => { (e.target as HTMLImageElement).src = FALLBACK; }} />
           </div>
 
           <div className="space-y-3">
@@ -40,7 +43,7 @@ export default function MatchModal({ profileName, profilePhoto, onClose, onMessa
               className="w-full py-3.5 rounded-2xl bg-white font-bold text-sm hover:bg-white/95 transition-all active:scale-95"
               style={{ color: 'hsl(340 82% 52%)' }}
             >
-              Написать {profileName}
+              Написать {profileName || 'собеседнику'}
             </button>
             <button
               onClick={onClose}
